@@ -7,10 +7,12 @@ import argparse
 import logging
 import numpy as np
 import sys
+sys.path = ['/home/ilya/yael/yael_v438_2/yael'] + sys.path
+
 import struct
 import ynumpy as ynp
 
-from .utils import timing
+from utils import timing
 
 
 def _determine_index_dtype(num_centroids):
@@ -26,7 +28,7 @@ KMEANS_INIT = 'kmeans++'
 
 
 @timing
-def product_quantization_part(subvectors, num_centroids=NUM_CENTROIDS, *,
+def product_quantization_part(subvectors, num_centroids=NUM_CENTROIDS,
                               num_threads=None, kmeans_init=KMEANS_INIT):
     num_vectors, num_dimensions_part = subvectors.shape
     if num_threads is None:
@@ -36,13 +38,6 @@ def product_quantization_part(subvectors, num_centroids=NUM_CENTROIDS, *,
                                               nt=num_threads, output=None,
                                               init=kmeans_init)
     return centroids, indices
-
-
-_FVECS_LINE_HEADER_BYTES = 4
-_FVECS_ELEMENT_BYTES = 4
-
-def ivecs_write(filename, array):
-
 
 
 @timing
@@ -101,7 +96,7 @@ def main():
                         help='Num threads to run: "random" or "kmeans++" '
                                 '(default is {})'.format(KMEANS_INIT))
     parser.add_argument('--light-indices', action='store_true',
-                        default=True, type=bool,
+                        default=True,
                         help='Store indices in light format (default)')
     parser.add_argument('--no-light-indices', action='store_false',
                         dest='light_indices',

@@ -20,7 +20,7 @@ def _render_args(args, kwargs):
     kwargs_str = map(lambda item: '{}={}'.format(item[0], _arg2str(item[1])))
     return '(' + ', '.join(list(args_str) + list(kwargs_str)) + ')'
 
-def _make_timing(f, *, name, with_args, level):
+def _make_timing(f, name, with_args, level):
     name = name or f.__name__
 
     @wraps
@@ -38,7 +38,7 @@ def _make_timing(f, *, name, with_args, level):
 
     return wrapper
 
-def timing(f=None, *, name=None, with_args=True, level='info'):
+def timing(f=None, name=None, with_args=True, level='info'):
     if callable(f):
         return _make_timing(f, name=name, with_args=with_args, level=level)
     else:

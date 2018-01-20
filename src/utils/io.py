@@ -18,7 +18,7 @@ def _xvecs_read_header(filename, element_size):
     return num_vectors, num_dimensions
 
 
-def _xvecs_read(filename, dtype, sub_dim=None, sub_start=0, limit=None, *,
+def _xvecs_read(filename, dtype, sub_dim=None, sub_start=0, limit=None,
                 batch_size=10000):
     assert not (sub_dim is None and sub_start > 0)
 
@@ -62,7 +62,7 @@ def _limit_to_nmax(limit):
     return limit if limit is not None else -1
 
 
-def fvecs_read(filename, sub_dim=None, sub_start=0, *,
+def fvecs_read(filename, sub_dim=None, sub_start=0,
                dtype=np.float32, limit=None, batch_size=10000):
     if sub_dim is None and sub_start == 0:
         return ynp.fvecs_read(filename, n_max=_limit_to_nmax(limit)) \
@@ -77,7 +77,7 @@ def fvecs_write(filename, matrix):
 
 
 
-def bvecs_read(filename, sub_dim=None, sub_start=0, *,
+def bvecs_read(filename, sub_dim=None, sub_start=0,
                light=False, limit=None, batch_size=10000):
     if light:
         assert sub_dim is None
@@ -94,7 +94,7 @@ def bvecs_read(filename, sub_dim=None, sub_start=0, *,
                        batch_size=batch_size)
 
 
-def bvecs_write(filename, array, *, light=True):
+def bvecs_write(filename, array, light=True):
     if light and array.ndim == 1:
         bvecs_write_light(filename, array)
         return
