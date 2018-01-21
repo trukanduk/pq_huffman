@@ -3,13 +3,19 @@
 import numpy as np
 import ynumpy as ynp
 
+import struct
+import os
+import os.path
+
+_FVECS_LINE_HEADER_BYTES = 4
+
 
 def _xvecs_read_header(filename, element_size):
     with open(filename, 'rb') as f:
         num_dimensions_raw = f.read(_FVECS_LINE_HEADER_BYTES)
-    num_dimensions = struct.unpack('i', line_size_raw)
+    num_dimensions = struct.unpack('i', num_dimensions_raw)[0]
 
-    filesize = os.path.getsize()
+    filesize = os.path.getsize(filename)
     line_bytes = _FVECS_LINE_HEADER_BYTES \
                  + num_dimensions * element_size
     num_vectors = int(filesize / line_bytes)
@@ -25,26 +31,29 @@ def _xvecs_read(filename, dtype, sub_dim=None, sub_start=0, limit=None,
     if sub_dim is None:
         return fvecs_read(filename, limit=limit, dtype=dtype)
 
+    num_vectors, num_dimensions = _xvecs_read_header(filename, dtype().itemsize)
     line_bytes = _FVECS_LINE_HEADER_BYTES \
                  + num_dimensions * dtype().itemsize
-    num_vectors, num_dimensions = _xvecs_read_header(filename, dtype().itemsize)
     assert sub_start >= 0
     assert sub_start + sub_dim <= num_dimensions
 
-    output = np.zeros(num_vectors, sub_dim, dtype=dtype)
+    output = np.zeros((num_vectors, sub_dim), dtype=dtype)
 
     start_index = 0
+    num_elements_per_header = int(4 / dtype().itemsize)
+    assert num_elements_per_header > 0
+    sub_start += num_elements_per_header
     sub_end = sub_start + sub_dim
     with open(filename, 'rb') as f:
-        while limit is not None or start_index < limit:
+        while limit is None or start_index < limit:
             batch_raw = f.read(line_bytes * batch_size)
             if not len(batch_raw):
                 break
 
             batch = np.frombuffer(batch_raw, dtype=dtype) \
-                    .reshape(-1, num_dimensions + 1)
-            output[start_index : batch.shape[0]] = \
-                    batch[:, sub_start + 1 : sub_end + 1]
+                    .reshape(-1, num_dimensions + num_elements_per_header)
+            output[start_index : start_index + batch.shape[0]] = \
+                    batch[:, sub_start : sub_end]
 
             start_index += batch.shape[0]
             if batch.shape[0] < batch_size:
@@ -76,6 +85,9 @@ def fvecs_write(filename, matrix):
     ynp.fvecs_write(filename, matrix)
 
 
+def fvecs_read_header(filename):
+    return _xvecs_read_header(filename, np.float32().itemsize)
+
 
 def bvecs_read(filename, sub_dim=None, sub_start=0,
                light=False, limit=None, batch_size=10000):
@@ -104,8 +116,13 @@ def bvecs_write(filename, array, light=True):
 
 
 def bvecs_write_light(filename, array):
-    array.tofile(filename, array)
+    array.tofile(filename)
 
 
 def bvecs_read_light(filename):
     return np.fromfile(filename, dtype=np.uint8)
+
+
+def mkdirs(filepath):
+    _, dirpath = os.path.split(filepath)
+    os.mkdirs(dirpath)

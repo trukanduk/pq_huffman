@@ -7,12 +7,17 @@ import argparse
 import logging
 import numpy as np
 import sys
-sys.path = ['/home/ilya/yael/yael_v438_2/yael'] + sys.path
+# FIXME:
+if sys.version[0] == '2':
+    sys.path = ['/home/ilya/yael/yael_v438_2/yael'] + sys.path
+else:
+    sys.path = ['/home/ilya/yael/yael_v438/yael'] + sys.path
 
 import struct
 import ynumpy as ynp
 
-from utils import timing
+from utils.timing import timing
+import utils.io as io
 
 
 def _determine_index_dtype(num_centroids):
@@ -27,7 +32,7 @@ NUM_CENTROIDS = 2**8
 KMEANS_INIT = 'kmeans++'
 
 
-@timing
+# @timing
 def product_quantization_part(subvectors, num_centroids=NUM_CENTROIDS,
                               num_threads=None, kmeans_init=KMEANS_INIT):
     num_vectors, num_dimensions_part = subvectors.shape
@@ -40,15 +45,16 @@ def product_quantization_part(subvectors, num_centroids=NUM_CENTROIDS,
     return centroids, indices
 
 
-@timing
+# @timing
 def product_quantization(input_filename, output_filename_template, num_parts,
                          num_centroids=NUM_CENTROIDS, num_threads=None,
                          kmeans_init=KMEANS_INIT, light_indices=True,
                          return_centroids=True, return_indices=True):
-    num_vectors, num_dimensions = _fvecs_read_header(input_filename)
+    num_vectors, num_dimensions = io.fvecs_read_header(input_filename)
     num_dimensions_part = int(num_dimensions / num_parts)
     assert num_dimensions_part * num_parts == num_dimensions
 
+    io.mkdirs(output_filename_template)
     indices_template = '{}-indices-{:02}-{{:02}}.ivecs' \
             .format(output_filename_template, num_parts)
     centroids_template = '{}-centroids-{:02}-{{:02}}.fvecs' \
@@ -56,8 +62,8 @@ def product_quantization(input_filename, output_filename_template, num_parts,
 
     centroids_result, indicecs_result = [], []
     for part_index in range(num_parts):
-        subvectors = _fvecs_read_file_part(input_filename, num_dimensions_part,
-                                           part_index * num_dimensions_part)
+        subvectors = io.fvecs_read(input_filename, num_dimensions_part,
+                                   part_index * num_dimensions_part)
         centroids, indices = \
                 product_quantization_part(subvectors, num_centroids,
                                           num_threads=num_threads,
@@ -83,11 +89,11 @@ def product_quantization(input_filename, output_filename_template, num_parts,
 def main():
     parser = argparse.ArgumentParser(description='run product quantization')
     parser.add_argument('input', help='Input data file')
-    parser.add_argument('output-template', help='''
+    parser.add_argument('output_template', help='''
         Output files template. Filenames will be
         <template>-(indices|centroids)-<num parts>-<part num>.(f|i)vecs
     ''')
-    parser.add_argument('num-parts', help='Num parts to split')
+    parser.add_argument('num_parts', type=int, help='Num parts to split')
     parser.add_argument('--num-centroids', type=int, default=NUM_CENTROIDS,
                         help='Num centroids to create (default is 256)')
     parser.add_argument('--num-threads', type=int, default=None,
@@ -99,12 +105,11 @@ def main():
                         default=True,
                         help='Store indices in light format (default)')
     parser.add_argument('--no-light-indices', action='store_false',
-                        dest='light_indices',
                         help='Store indices in non-light format')
 
     args = parser.parse_args()
-    product_quantization(args.input, args.output_template,
-                         num_parts=args.num_parts,
+    print(args)
+    product_quantization(args.input, args.output_template, args.num_parts,
                          num_centroids=args.num_centroids,
                          num_threads=args.num_threads,
                          light_indices=args.light_indices,
