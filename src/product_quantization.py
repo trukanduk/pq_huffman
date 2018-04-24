@@ -17,6 +17,7 @@ import struct
 import ynumpy as ynp
 
 from utils.timing import timing
+import utils
 import utils.io as io
 
 
@@ -32,12 +33,11 @@ NUM_CENTROIDS = 2**8
 KMEANS_INIT = 'kmeans++'
 
 
-# @timing
+@timing
 def product_quantization_part(subvectors, num_centroids=NUM_CENTROIDS,
                               num_threads=None, kmeans_init=KMEANS_INIT):
     num_vectors, num_dimensions_part = subvectors.shape
-    if num_threads is None:
-        num_threads = cpu_count() + 1
+    num_threads = utils.make_num_threads(num_threads)
 
     centroids, _, _, indices, _ = ynp.kmeans(subvectors, num_centroids,
                                               nt=num_threads, output=None,
@@ -45,7 +45,7 @@ def product_quantization_part(subvectors, num_centroids=NUM_CENTROIDS,
     return centroids, indices
 
 
-# @timing
+@timing
 def product_quantization(input_filename, output_filename_template, num_parts,
                          num_centroids=NUM_CENTROIDS, num_threads=None,
                          kmeans_init=KMEANS_INIT, light_indices=True,
@@ -55,7 +55,7 @@ def product_quantization(input_filename, output_filename_template, num_parts,
     assert num_dimensions_part * num_parts == num_dimensions
 
     io.mkdirs(output_filename_template)
-    indices_template = '{}-indices-{:02}-{{:02}}.ivecs' \
+    indices_template = '{}-indices-{:02}-{{:02}}.bvecs' \
             .format(output_filename_template, num_parts)
     centroids_template = '{}-centroids-{:02}-{{:02}}.fvecs' \
             .format(output_filename_template, num_parts)
@@ -87,11 +87,13 @@ def product_quantization(input_filename, output_filename_template, num_parts,
 
 
 def main():
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+
     parser = argparse.ArgumentParser(description='run product quantization')
     parser.add_argument('input', help='Input data file')
     parser.add_argument('output_template', help='''
         Output files template. Filenames will be
-        <template>-(indices|centroids)-<num parts>-<part num>.(f|i)vecs
+        <template>-(indices|centroids)-<num parts>-<part num>.(b|f)vecs
     ''')
     parser.add_argument('num_parts', type=int, help='Num parts to split')
     parser.add_argument('--num-centroids', type=int, default=NUM_CENTROIDS,
@@ -108,7 +110,6 @@ def main():
                         help='Store indices in non-light format')
 
     args = parser.parse_args()
-    print(args)
     product_quantization(args.input, args.output_template, args.num_parts,
                          num_centroids=args.num_centroids,
                          num_threads=args.num_threads,
