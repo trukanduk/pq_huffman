@@ -7,12 +7,6 @@ import argparse
 import logging
 import numpy as np
 import sys
-# FIXME:
-if sys.version[0] == '2':
-    sys.path = ['/home/ilya/yael/yael_v438_2/yael'] + sys.path
-else:
-    sys.path = ['/home/ilya/yael/yael_v438/yael'] + sys.path
-
 import struct
 import ynumpy as ynp
 

@@ -3,12 +3,6 @@
 import sys
 import utils
 import numpy as np
-
-if sys.version[0] == '2':
-    sys.path = ['/home/ilya/yael/yael_v438_2/yael'] + sys.path
-else:
-    sys.path = ['/home/ilya/yael/yael_v438/yael'] + sys.path
-
 import utils.io as io
 
 def main():
