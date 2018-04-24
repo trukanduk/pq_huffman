@@ -24,9 +24,9 @@ def make_exact_nn(input_filename, output_template, num_nn, num_threads=None,
     nn_dist = nn_dist[:, 1:].copy() # TODO:
 
     io.mkdirs(output_template)
-    io.ivecs_write(output_template + '-nn_indices.ivecs', nn_indices,
+    io.ivecs_write(output_template + 'nn_indices.ivecs', nn_indices,
                    light=light_indices)
-    io.fvecs_write(output_template + '-nn_dist.fvecs', nn_dist,
+    io.fvecs_write(output_template + 'nn_dist.fvecs', nn_dist,
                    light=light_dist)
 
 

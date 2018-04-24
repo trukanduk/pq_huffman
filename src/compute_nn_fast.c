@@ -1129,10 +1129,13 @@ typedef struct _config {
     int num_splits_per_dim;
     int num_blocks_per_dim;
     int num_threads;
+    int with_blocks_stat;
 
     // NOTE: computed args
     const char* output_indices_filename;
     const char* output_dists_filename;
+
+    FILE* blocks_stat_file;
 
     // NOTE: dataset info
     int num_vectors;
@@ -1206,15 +1209,19 @@ config_t parse_args(int argc, const char* argv[]) {
     config.num_splits_per_dim = 2;
     config.num_blocks_per_dim = 3;
     config.num_threads = 1;
+    config.with_blocks_stat = 0;
 
     config.output_indices_filename = NULL;
     config.output_dists_filename = NULL;
+    config.blocks_stat_file = NULL;
     config.num_vectors = 0;
     config.num_dimensions = 0;
 
     int ok = 1;
     while (arg_index < argc) {
-        if (!strcmp(argv[arg_index], "--no-delete-temp-file")) {
+        if (!strcmp(argv[arg_index], "--with-blocks-stat")) {
+            config.with_blocks_stat = 1;
+        } else if (!strcmp(argv[arg_index], "--no-delete-temp-file")) {
             config.delete_temp_file = 0;
         } else if (!strcmp(argv[arg_index], "--delete-temp-file")) {
             config.delete_temp_file = 1;
@@ -1241,7 +1248,11 @@ config_t parse_args(int argc, const char* argv[]) {
 
     config.output_indices_filename = concat(config.output_files_template, "nn_indices.lvecsl");
     config.output_dists_filename = concat(config.output_files_template, "nn_dist.fvecsl");
-
+    if (config.with_blocks_stat) {
+        char* blocks_stat_filename = concat(config.output_files_template, "blocks_stat.txt");
+        config.blocks_stat_file = fopen(blocks_stat_filename, "w");
+        free(blocks_stat_filename);
+    }
     dataset_metainfo_t metainfo = get_metainfo(config.input_filename);
     config.num_vectors = metainfo.num_vectors;
     config.num_dimensions = metainfo.num_dimensions;
@@ -1257,6 +1268,11 @@ void config_free(config_t* config) {
     if (config->output_dists_filename) {
         free((void*) config->output_dists_filename);
         config->output_dists_filename = NULL;
+    }
+
+    if (config->blocks_stat_file) {
+        fclose(config->blocks_stat_file);
+        config->blocks_stat_file = NULL;
     }
 }
 
@@ -1400,6 +1416,9 @@ void run(config_t* config, blocks_info_t* blocks_info) {
         }
 
         int block_size = block_sizes[active_buffer];
+        if (config->blocks_stat_file) {
+            fprintf(config->blocks_stat_file, "%d ", block_size);
+        }
         // printf("Starting knn for block %lld of size %d\n", block_id, block_size);
         int num_nn_real = iminll(config->num_nn, block_size - 1);
         knn_full_thread(2, block_size, block_size, config->num_dimensions,
@@ -1473,5 +1492,6 @@ int main(int argc, const char* argv[]) {
     if (config.delete_temp_file) {
         remove(config.temp_file);
     }
+    config_free(&config);
     return 0;
 }
