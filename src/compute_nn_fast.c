@@ -1239,8 +1239,8 @@ config_t parse_args(int argc, const char* argv[]) {
         exit(1);
     }
 
-    config.output_indices_filename = concat(config.output_files_template, "-nn_indices.lvecsl");
-    config.output_dists_filename = concat(config.output_files_template, "-nn_dist.fvecsl");
+    config.output_indices_filename = concat(config.output_files_template, "nn_indices.lvecsl");
+    config.output_dists_filename = concat(config.output_files_template, "nn_dist.fvecsl");
 
     dataset_metainfo_t metainfo = get_metainfo(config.input_filename);
     config.num_vectors = metainfo.num_vectors;
@@ -1458,7 +1458,6 @@ void run(config_t* config, blocks_info_t* blocks_info) {
 int main(int argc, const char* argv[]) {
     config_t config = parse_args(argc, argv);
     init_temp_file(config.temp_file, config.num_vectors, config.num_nn);
-    // return 0;
 
     blocks_info_t blocks_info;
     blocks_info_init(&blocks_info, config.input_filename, config.num_vectors, config.num_dimensions,
@@ -1471,8 +1470,8 @@ int main(int argc, const char* argv[]) {
     temp_file_to_result(config.temp_file, config.output_indices_filename,
                         config.output_dists_filename, config.num_vectors, config.num_nn);
 
-    // if (config.delete_temp_file) {
-    //     remove(config.temp_file);
-    // }
+    if (config.delete_temp_file) {
+        remove(config.temp_file);
+    }
     return 0;
 }
