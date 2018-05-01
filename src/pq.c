@@ -280,7 +280,7 @@ static void run(const config_t* config) {
                                 config->num_dimensions_per_part * part_index,
                                 config->num_dimensions_per_part, data);
         kmeans(config->num_dimensions_per_part, config->num_vectors, config->num_clusters,
-               100, data, config->num_threads | KMEANS_INIT_BERKELEY,
+               config->kmeans_iterations, data, config->num_threads | KMEANS_INIT_BERKELEY,
                time(NULL), 1, codebook.centroids[part_index], NULL, clusters, NULL);
         copy_cluster_indices(result, part_index, clusters, config->num_vectors, config->m);
     }

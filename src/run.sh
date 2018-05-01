@@ -87,7 +87,7 @@ then
 
     start=$(now_ts)
     ./pq "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" $M \
-            --num-threads $NUM_THREADS --compute-error # > "$OUT_DIR/stdout.log" 2> "$OUT_DIR/stderr.log" || exit 1
+            --num-threads $NUM_THREADS --compute-error > "$OUT_DIR/stdout.log" 2> "$OUT_DIR/stderr.log" || exit 1
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
     echo "    Done in $(diff_iso $start)"
