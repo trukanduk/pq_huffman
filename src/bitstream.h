@@ -16,8 +16,8 @@ bit_stream_t* bit_stream_destroy(bit_stream_t* stream); // NOTE: Always returns 
 bit_stream_t* bit_stream_destroy_file(bit_stream_t* stream, int close_file); // NOTE: Always returns NULL
 
 int bit_stream_flush(bit_stream_t* stream, int add_pad);
-int bit_stream_write(bit_stream_t* stream, byte_t* data, int bit_length);
-// int bit_stream_read(bit_stream_t* stream, byte* data, int bit_length);
+int bit_stream_write(bit_stream_t* stream, const byte_t* data, int bit_length);
+void bit_stream_read(bit_stream_t* stream, byte_t* data, int bit_length);
 int bit_stream_read_bit(bit_stream_t* stream);
 
 #endif // _BITSTREAM_H

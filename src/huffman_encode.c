@@ -182,16 +182,6 @@ void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_siz
     tree_nodes = NULL;
 }
 
-void huffman_codebook_destroy(huffman_codebook_t* codebook) {
-    free(codebook->codefield);
-    codebook->codefield = NULL;
-
-    free(codebook->items);
-    codebook->items = NULL;
-
-    codebook->alphabet_size = 0;
-}
-
 #ifdef _HUFFMAN_ENCODE_TEST
 
 void print_code(const huffman_code_item_t* item) {
@@ -211,7 +201,6 @@ void print_code(const huffman_code_item_t* item) {
 
 #define NUM_SYMBOLS 10
 int main() {
-    // float counts[NUM_SYMBOLS] = {0.f, 1.f, 1.f, 2.f, 3.f, 5.f, 8.f, 13.f, 21.f, 0.f};
     float counts[NUM_SYMBOLS] = {0.f, 21.f, 13.f, 8.f, 5.f, 3.f, 2.f, 1.f, 1.f, 0.f};
     huffman_codebook_t codebook;
     huffman_codebook_encode_init(&codebook, NUM_SYMBOLS, &counts[0]);
@@ -220,6 +209,7 @@ int main() {
         print_code(&codebook.items[i]);
         printf("\n");
     }
+
     huffman_codebook_destroy(&codebook);
     return 0;
 }

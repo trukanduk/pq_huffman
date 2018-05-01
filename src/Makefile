@@ -15,16 +15,28 @@ huffman_encode.o: huffman_encode.c huffman.h bitstream.h
 huffman_decode.o: huffman_decode.c huffman.h bitstream.h
 	gcc huffman_decode.c -o huffman_decode.o -c -std=c99
 
-all_test: bitstream_test huffman_encode_test huffman_decode_test
+huffman_codebook.o: huffman_codebook.c huffman.h bitstream.h
+	gcc huffman_codebook.c -o huffman_codebook.o -c -std=c99
+
+all_test: bitstream_test huffman_encode_test huffman_decode_test huffman_codebook_test
 
 bitstream_test: bitstream.c bitstream.h
 	gcc bitstream.c -o bitstream_test -std=c99 -D_BITSTREAM_TEST
 
-huffman_encode_test: huffman_encode.c huffman.h bitstream.h
-	gcc huffman_encode.c -o huffman_encode_test -std=c99 -D_HUFFMAN_ENCODE_TEST
+huffman_encode_test.o: huffman_encode.c huffman.h bitstream.h
+	gcc huffman_encode.c -c -o huffman_encode_test.o -std=c99 -D_HUFFMAN_ENCODE_TEST
+
+huffman_encode_test: huffman_encode_test.o huffman_codebook.o bitstream.o
+	gcc -o huffman_encode_test huffman_encode_test.o huffman_codebook.o bitstream.o
 
 huffman_decode_test.o: huffman_decode.c huffman.h bitstream.h
 	gcc huffman_decode.c -c -o huffman_decode_test.o -std=c99 -D_HUFFMAN_DECODE_TEST
 
-huffman_decode_test: huffman_decode_test.o huffman_encode.o
-	gcc -o huffman_decode_test huffman_decode_test.o huffman_encode.o
+huffman_decode_test: huffman_decode_test.o huffman_codebook.o huffman_encode.o bitstream.o
+	gcc -o huffman_decode_test huffman_decode_test.o huffman_codebook.o huffman_encode.o bitstream.o
+
+huffman_codebook_test.o: huffman_codebook.c huffman.h bitstream.h
+	gcc huffman_codebook.c -c -o huffman_codebook_test.o -std=c99 -D_HUFFMAN_CODEBOOK_TEST
+
+huffman_codebook_test: huffman_codebook_test.o huffman_encode.o bitstream.o
+	gcc -o huffman_codebook_test huffman_codebook_test.o huffman_encode.o bitstream.o
