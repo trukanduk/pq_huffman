@@ -16,7 +16,7 @@ typedef struct _huffman_decoder {
 } huffman_decoder_t;
 
 static huffman_decoder_node_t* huffman_decoder_add_code(huffman_decoder_node_t* node, int symbol,
-                                                        huffman_code_item_t* item, int depth) {
+                                                        const huffman_code_item_t* item, int depth) {
     if (!node) {
         node = malloc(sizeof(*node));
         node->symbol = HUFFMAN_NO_SYMBOL;
@@ -48,7 +48,7 @@ static huffman_decoder_node_t* huffman_decoder_free_trie(huffman_decoder_node_t*
     return NULL;
 }
 
-huffman_decoder_t* huffman_decoder_create(huffman_codebook_t* codebook) {
+huffman_decoder_t* huffman_decoder_create(const huffman_codebook_t* codebook) {
     // TODO: allocate nodes pool
     huffman_decoder_t* decoder = malloc(sizeof(huffman_decoder_t));
     for (int symbol_id = 0; symbol_id < codebook->alphabet_size; ++symbol_id) {
@@ -105,7 +105,7 @@ int huffman_decoder_push_bits(huffman_decoder_t* decoder, const byte_t* bits, in
 
 #define NUM_SYMBOLS 6
 int main() {
-    float counts[NUM_SYMBOLS] = {1.f, 4.f, 3.f, 8.f, 3.f, 8.f};
+    double counts[NUM_SYMBOLS] = {1.0, 4.0, 3.0, 8.0, 3.0, 8.0};
     huffman_codebook_t codebook;
     huffman_codebook_encode_init(&codebook, NUM_SYMBOLS, &counts[0]);
     huffman_decoder_t* decoder = huffman_decoder_create(&codebook);

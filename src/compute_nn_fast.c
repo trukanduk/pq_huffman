@@ -12,6 +12,8 @@
 
 // #define _QUEUE_DEBUG
 
+typedef unsigned int vector_id_t;
+
 // Utils
 
 int imin(int a, int b) {
@@ -42,7 +44,7 @@ int make_dataset_row_size(int num_dimensions) {
 // Max heap
 
 typedef struct _temp_file_item {
-    long long index;
+    vector_id_t index;
     float dist;
 } temp_file_item_t;
 
@@ -50,7 +52,7 @@ int search_indices_collisions(temp_file_item_t* begin, temp_file_item_t* end,
                               const temp_file_item_t* item);
 void heap_push(temp_file_item_t* heap, const temp_file_item_t* item, int num_nn);
 void heap_push_impl(temp_file_item_t* heap, const temp_file_item_t* item, int num_nn);
-void heap_sort(temp_file_item_t* heap, int num_nn, long long* indices, float* dists);
+void heap_sort(temp_file_item_t* heap, int num_nn, vector_id_t* indices, float* dists);
 
 int search_indices_collisions(temp_file_item_t* begin, temp_file_item_t* end,
                               const temp_file_item_t* item)
@@ -97,7 +99,7 @@ void heap_push_impl(temp_file_item_t* heap, const temp_file_item_t* item, int nu
     heap[item_index] = *item;
 }
 
-void heap_sort(temp_file_item_t* heap, int num_nn, long long* indices, float* dists) {
+void heap_sort(temp_file_item_t* heap, int num_nn, vector_id_t* indices, float* dists) {
     while (--num_nn >= 0) {
         indices[num_nn] = heap[0].index;
         dists[num_nn] = heap[0].dist;
@@ -1079,11 +1081,11 @@ void temp_file_to_result_batches(FILE* temp_file, FILE* indices_file, FILE* dist
                                  long long num_vectors, int num_nn, long long batch_size)
 {
     long long tempfile_row_size = make_temp_file_row_size(num_nn);
-    long long indices_row_size = sizeof(long long) * num_nn;
+    long long indices_row_size = sizeof(vector_id_t) * num_nn;
     long long dists_row_size = sizeof(float) * num_nn;
 
     temp_file_item_t* tempfile_batch = malloc(tempfile_row_size * batch_size);
-    long long* indices_batch = malloc(indices_row_size * batch_size);
+    vector_id_t* indices_batch = malloc(indices_row_size * batch_size);
     float* dists_batch = malloc(dists_row_size * batch_size);
 
     int num_vectors_int = num_vectors;
@@ -1179,7 +1181,7 @@ dataset_metainfo_t get_metainfo(const char* input_filename) {
     return metainfo;
 }
 
-static const char* concat(const char* prefix, const char* suffix) {
+static char* concat(const char* prefix, const char* suffix) {
     int prefix_length = strlen(prefix);
     int suffix_length = strlen(suffix);
 
@@ -1246,7 +1248,7 @@ config_t parse_args(int argc, const char* argv[]) {
         exit(1);
     }
 
-    config.output_indices_filename = concat(config.output_files_template, "nn_indices.lvecsl");
+    config.output_indices_filename = concat(config.output_files_template, "nn_indices.ivecsl");
     config.output_dists_filename = concat(config.output_files_template, "nn_dist.fvecsl");
     if (config.with_blocks_stat) {
         char* blocks_stat_filename = concat(config.output_files_template, "blocks_stat.txt");

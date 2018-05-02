@@ -21,13 +21,15 @@ typedef struct _huffman_codebook {
     huffman_code_item_t* items;
 } huffman_codebook_t;
 
-void huffman_codebook_save(huffman_codebook_t* codebook, FILE* file);
+void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file);
 void huffman_codebook_load(huffman_codebook_t* codebook, FILE* file);
 
-void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_size, float* symbol_counts);
+void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_size, const double* symbol_counts);
 void huffman_codebook_destroy(huffman_codebook_t* codebook);
 
-huffman_decoder_t* huffman_decoder_create(huffman_codebook_t* codebook);
+double huffman_estimate_size(const huffman_codebook_t* codebook, const double* symbol_counts);
+
+huffman_decoder_t* huffman_decoder_create(const huffman_codebook_t* codebook);
 huffman_decoder_t* huffman_decoder_destroy(huffman_decoder_t* decoder); // NOTE: returns NULL
 
 void huffman_decoder_reset(huffman_decoder_t* decoder);

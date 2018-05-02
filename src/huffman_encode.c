@@ -5,7 +5,7 @@
 #include <string.h>
 
 typedef struct _huffman_encoding_tree_node {
-    float sum_count;
+    double sum_count;
     int symbol_id; // NOTE: -1 if is not leaf
     struct _huffman_encoding_tree_node* children[2];
 } huffman_encoding_tree_node_t;
@@ -119,7 +119,7 @@ static int huffman_encoding_traverse_tree_collect_codes(huffman_codebook_t* code
 }
 
 void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_size,
-                                  float* symbol_counts) {
+                                  const double* symbol_counts) {
     int num_nodes = 2 * alphabet_size - 1;
     huffman_encoding_tree_node_t* tree_nodes =
             malloc(sizeof(huffman_encoding_tree_node_t) * num_nodes);
@@ -182,6 +182,15 @@ void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_siz
     tree_nodes = NULL;
 }
 
+double huffman_estimate_size(const huffman_codebook_t* codebook, const double* symbol_counts) {
+    double result = 0;
+    for (int symbol_id = 0; symbol_id < codebook->alphabet_size; ++symbol_id) {
+        result += symbol_counts[symbol_id] * codebook->items[symbol_id].bit_length;
+    }
+    return result;
+}
+
+
 #ifdef _HUFFMAN_ENCODE_TEST
 
 void print_code(const huffman_code_item_t* item) {
@@ -201,7 +210,7 @@ void print_code(const huffman_code_item_t* item) {
 
 #define NUM_SYMBOLS 10
 int main() {
-    float counts[NUM_SYMBOLS] = {0.f, 21.f, 13.f, 8.f, 5.f, 3.f, 2.f, 1.f, 1.f, 0.f};
+    double counts[NUM_SYMBOLS] = {0.0, 21.0, 13.0, 8.0, 5.0, 3.0, 2.0, 1.0, 1.0, 0.0};
     huffman_codebook_t codebook;
     huffman_codebook_encode_init(&codebook, NUM_SYMBOLS, &counts[0]);
     for (int i = 0; i < NUM_SYMBOLS; ++i) {

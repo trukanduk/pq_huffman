@@ -34,7 +34,7 @@ static unsigned int huffman_codebook_read_bit_length(FILE* file) {
     return bit_length;
 }
 
-void huffman_codebook_save(huffman_codebook_t* codebook, FILE* file) {
+void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file) {
     fwrite(&codebook->alphabet_size, 1, sizeof(codebook->alphabet_size), file);
     for (const huffman_code_item_t* item = codebook->items;
          item != codebook->items + codebook->alphabet_size;
@@ -97,9 +97,9 @@ void huffman_codebook_destroy(huffman_codebook_t* codebook) {
 // NOTE: should be greater then 0x7f = 127 to test multi-byte bit_length compression
 #define NUM_SYMBOLS (1 << 15)
 int main() {
-    float* counts = malloc(sizeof(*counts) * NUM_SYMBOLS);
-    counts[0] = 0.f;
-    counts[1] = 1.f;
+    double* counts = malloc(sizeof(*counts) * NUM_SYMBOLS);
+    counts[0] = 0.0;
+    counts[1] = 1.0;
     for (int i = 2; i < NUM_SYMBOLS; ++i) {
         counts[i] = counts[i - 1] + counts[i - 2];
     }
