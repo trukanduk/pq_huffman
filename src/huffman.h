@@ -18,6 +18,7 @@ typedef struct _huffman_code_item {
 typedef struct _huffman_codebook {
     byte_t* codefield;
     int alphabet_size;
+    int is_context;
     huffman_code_item_t* items;
 } huffman_codebook_t;
 
@@ -25,6 +26,7 @@ void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file);
 void huffman_codebook_load(huffman_codebook_t* codebook, FILE* file);
 
 void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_size, const double* symbol_counts);
+void huffman_codebook_context_encode_init(huffman_codebook_t* codebook, int alphabet_size, const double* symbol_counts);
 void huffman_codebook_destroy(huffman_codebook_t* codebook);
 
 double huffman_estimate_size(const huffman_codebook_t* codebook, const double* symbol_counts);

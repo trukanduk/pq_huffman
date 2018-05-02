@@ -93,6 +93,7 @@ static void huffman_encoding_traverse_tree_collect_statistics(huffman_encoding_t
 }
 
 static int huffman_encoding_traverse_tree_collect_codes(huffman_codebook_t* codebook,
+                                                        int items_offset,
                                                         int* code_byte_start,
                                                         huffman_encoding_tree_node_t* node,
                                                         int current_depth,
@@ -100,8 +101,9 @@ static int huffman_encoding_traverse_tree_collect_codes(huffman_codebook_t* code
     if (node->symbol_id != HUFFMAN_NO_SYMBOL) {
         int code_length_bytes = (current_depth + BYTE_NUM_BITS - 1) / BYTE_NUM_BITS;
         memcpy(codebook->codefield + *code_byte_start, current_code, code_length_bytes);
-        codebook->items[node->symbol_id].code = codebook->codefield + *code_byte_start;
-        codebook->items[node->symbol_id].bit_length = current_depth;
+        codebook->items[items_offset + node->symbol_id].code =
+                codebook->codefield + *code_byte_start;
+        codebook->items[items_offset + node->symbol_id].bit_length = current_depth;
         *code_byte_start += code_length_bytes;
     } else {
         int code_byte = current_depth / BYTE_NUM_BITS;
@@ -109,37 +111,47 @@ static int huffman_encoding_traverse_tree_collect_codes(huffman_codebook_t* code
 
         // NOTE: start with 1 to keep zero in current bit after done
         current_code[code_byte] |= (1 << (BYTE_NUM_BITS - code_bit - 1));
-        huffman_encoding_traverse_tree_collect_codes(codebook, code_byte_start, node->children[1],
-                                                     current_depth + 1, current_code);
+        huffman_encoding_traverse_tree_collect_codes(codebook, items_offset, code_byte_start,
+                                                     node->children[1], current_depth + 1,
+                                                     current_code);
 
         current_code[code_byte] &= ~(1 << (BYTE_NUM_BITS - code_bit - 1));
-        huffman_encoding_traverse_tree_collect_codes(codebook, code_byte_start, node->children[0],
-                                                     current_depth + 1, current_code);
+        huffman_encoding_traverse_tree_collect_codes(codebook, items_offset, code_byte_start,
+                                                     node->children[0], current_depth + 1,
+                                                     current_code);
     }
 }
 
-void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_size,
-                                  const double* symbol_counts) {
+typedef struct _huffman_encoder_impl {
+    int alphabet_size;
+    huffman_encoding_tree_node_t* tree_nodes;
+    // huffman_encoding_heap_t heap;
+    huffman_encoding_tree_node_t* root_node;
+} huffman_encoder_impl_t;
+
+static void huffman_codebook_init_encoder(huffman_encoder_impl_t* encoder, int alphabet_size,
+                                          const double* symbol_counts) {
     int num_nodes = 2 * alphabet_size - 1;
-    huffman_encoding_tree_node_t* tree_nodes =
-            malloc(sizeof(huffman_encoding_tree_node_t) * num_nodes);
+    encoder->alphabet_size = alphabet_size;
+    encoder->tree_nodes = malloc(sizeof(huffman_encoding_tree_node_t) * num_nodes);
+
     huffman_encoding_heap_t heap;
     huffman_heap_init(&heap, alphabet_size);
     for (int node_index = 0; node_index < num_nodes; ++node_index) {
         // NOTE: Create node for zero symbols but don't push them to queue
-        tree_nodes[node_index].children[0] = NULL;
-        tree_nodes[node_index].children[1] = NULL;
+        encoder->tree_nodes[node_index].children[0] = NULL;
+        encoder->tree_nodes[node_index].children[1] = NULL;
 
         if (node_index < alphabet_size) {
-            tree_nodes[node_index].sum_count = symbol_counts[node_index];
-            tree_nodes[node_index].symbol_id = node_index;
+            encoder->tree_nodes[node_index].sum_count = symbol_counts[node_index];
+            encoder->tree_nodes[node_index].symbol_id = node_index;
 
             if (symbol_counts[node_index] > 0.0f) {
-                huffman_encoding_heap_push(&heap, &tree_nodes[node_index]);
+                huffman_encoding_heap_push(&heap, &encoder->tree_nodes[node_index]);
             }
         } else {
-            tree_nodes[node_index].sum_count = 0.0;
-            tree_nodes[node_index].symbol_id = HUFFMAN_NO_SYMBOL;
+            encoder->tree_nodes[node_index].sum_count = 0.0;
+            encoder->tree_nodes[node_index].symbol_id = HUFFMAN_NO_SYMBOL;
         }
     }
     int used_nodes = alphabet_size;
@@ -149,7 +161,7 @@ void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_siz
         huffman_encoding_tree_node_t* zero_node = huffman_encoding_heap_pop(&heap);
         huffman_encoding_tree_node_t* one_node = huffman_encoding_heap_pop(&heap);
 
-        huffman_encoding_tree_node_t* new_node = &tree_nodes[used_nodes++];
+        huffman_encoding_tree_node_t* new_node = &encoder->tree_nodes[used_nodes++];
         new_node->sum_count = zero_node->sum_count + one_node->sum_count;
         new_node->symbol_id = HUFFMAN_NO_SYMBOL;
         new_node->children[0] = zero_node;
@@ -157,29 +169,83 @@ void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_siz
         huffman_encoding_heap_push(&heap, new_node);
     }
 
-    huffman_encoding_tree_node_t* root_node = heap.elements[0];
-    int bytes_to_allocate = 0;
-    int longest_code_bytes = 0;
-    huffman_encoding_traverse_tree_collect_statistics(root_node, 0, &bytes_to_allocate,
-                                                      &longest_code_bytes);
-    codebook->codefield = malloc(bytes_to_allocate * sizeof(byte_t));
-    codebook->alphabet_size = alphabet_size;
-    codebook->items = malloc(alphabet_size * sizeof(*codebook->items));
-    for (int symbol_id = 0; symbol_id < alphabet_size; ++symbol_id) {
+    encoder->root_node = heap.elements[0];
+    huffman_heap_destroy(&heap);
+}
+
+static void huffman_codebook_encoder_free(huffman_encoder_impl_t* encoder) {
+    if (encoder->tree_nodes) {
+        free(encoder->tree_nodes);
+        encoder->tree_nodes = NULL;
+    }
+    encoder->root_node = NULL;
+}
+
+static void huffman_codebook_init_items(huffman_codebook_t* codebook, int num_items) {
+    codebook->items = malloc(num_items * sizeof(*codebook->items));
+    for (int symbol_id = 0; symbol_id < num_items; ++symbol_id) {
         codebook->items[symbol_id].bit_length = 0;
         codebook->items[symbol_id].code = NULL;
     }
+}
+
+void huffman_codebook_encode_init(huffman_codebook_t* codebook, int alphabet_size,
+                                  const double* symbol_counts) {
+    huffman_encoder_impl_t encoder;
+    huffman_codebook_init_encoder(&encoder, alphabet_size, symbol_counts);
+
+    int bytes_to_allocate = 0;
+    int longest_code_bytes = 0;
+    huffman_encoding_traverse_tree_collect_statistics(encoder.root_node, 0, &bytes_to_allocate,
+                                                      &longest_code_bytes);
+    codebook->codefield = malloc(bytes_to_allocate * sizeof(byte_t));
+    codebook->alphabet_size = alphabet_size;
+    codebook->is_context = 0;
+    huffman_codebook_init_items(codebook, alphabet_size);
 
     int code_byte_start = 0;
     byte_t* current_code = calloc(sizeof(*current_code), longest_code_bytes);
-    huffman_encoding_traverse_tree_collect_codes(codebook, &code_byte_start, root_node, 0,
-                                                 current_code);
+    huffman_encoding_traverse_tree_collect_codes(codebook, 0, &code_byte_start, encoder.root_node,
+                                                 0, current_code);
     free(current_code);
     current_code = NULL;
 
-    huffman_heap_destroy(&heap);
-    free(tree_nodes);
-    tree_nodes = NULL;
+    huffman_codebook_encoder_free(&encoder);
+}
+
+void huffman_codebook_context_encode_init(huffman_codebook_t* codebook, int alphabet_size,
+                                          const double* symbol_counts) {
+    huffman_encoder_impl_t* encoders = malloc(sizeof(*encoders) * alphabet_size);
+    for (int encoder_index = 0; encoder_index < alphabet_size; ++encoder_index) {
+        huffman_codebook_init_encoder(encoders + encoder_index, alphabet_size,
+                                      symbol_counts + encoder_index * alphabet_size);
+    }
+
+    int bytes_to_allocate = 0;
+    int longest_code_bytes = 0;
+    for (int encoder_index = 0; encoder_index < alphabet_size; ++encoder_index) {
+        huffman_encoding_traverse_tree_collect_statistics(encoders[encoder_index].root_node, 0,
+                                                          &bytes_to_allocate, &longest_code_bytes);
+    }
+    codebook->codefield = malloc(bytes_to_allocate * sizeof(byte_t));
+    codebook->alphabet_size = alphabet_size;
+    codebook->is_context = 1;
+    huffman_codebook_init_items(codebook, alphabet_size * alphabet_size);
+
+    int code_byte_start = 0;
+    byte_t* current_code = calloc(sizeof(*current_code), longest_code_bytes);
+    for (int encoder_index = 0; encoder_index < alphabet_size; ++encoder_index) {
+        huffman_encoding_traverse_tree_collect_codes(codebook, encoder_index * alphabet_size,
+                                                     &code_byte_start,
+                                                     encoders[encoder_index].root_node,
+                                                     0, current_code);
+    }
+    free(current_code);
+    current_code = NULL;
+
+    for (int encoder_index = 0; encoder_index < alphabet_size; ++encoder_index) {
+        huffman_codebook_encoder_free(encoders + encoder_index);
+    }
 }
 
 double huffman_estimate_size(const huffman_codebook_t* codebook, const double* symbol_counts) {
@@ -193,7 +259,7 @@ double huffman_estimate_size(const huffman_codebook_t* codebook, const double* s
 
 #ifdef _HUFFMAN_ENCODE_TEST
 
-void print_code(const huffman_code_item_t* item) {
+static void print_code(const huffman_code_item_t* item) {
     if (!item->code) {
         printf("-");
         return;
@@ -209,17 +275,36 @@ void print_code(const huffman_code_item_t* item) {
 }
 
 #define NUM_SYMBOLS 10
-int main() {
-    double counts[NUM_SYMBOLS] = {0.0, 21.0, 13.0, 8.0, 5.0, 3.0, 2.0, 1.0, 1.0, 0.0};
+static void run_test(int context) {
+    double counts[NUM_SYMBOLS * NUM_SYMBOLS] = {0.0, 21.0, 13.0, 8.0, 5.0, 3.0, 2.0, 1.0, 1.0, 0.0};
+    if (context) {
+        for (int i = NUM_SYMBOLS; i < NUM_SYMBOLS * NUM_SYMBOLS; ++i) {
+            counts[i] = counts[i - NUM_SYMBOLS + 1];
+        }
+    }
+
     huffman_codebook_t codebook;
-    huffman_codebook_encode_init(&codebook, NUM_SYMBOLS, &counts[0]);
-    for (int i = 0; i < NUM_SYMBOLS; ++i) {
-        printf("%d: ", i);
+    if (context) {
+        huffman_codebook_context_encode_init(&codebook, NUM_SYMBOLS, &counts[0]);
+    } else {
+        huffman_codebook_encode_init(&codebook, NUM_SYMBOLS, &counts[0]);
+    }
+    for (int i = 0; i < NUM_SYMBOLS * (context ? NUM_SYMBOLS : 1); ++i) {
+        if (context) {
+            printf("%d -> %d: ", i / NUM_SYMBOLS, i % NUM_SYMBOLS);
+        } else {
+            printf("%d: ", i);
+        }
         print_code(&codebook.items[i]);
         printf("\n");
     }
 
     huffman_codebook_destroy(&codebook);
+}
+
+int main() {
+    run_test(0);
+    run_test(1);
     return 0;
 }
 #undef NUM_SYMBOLS

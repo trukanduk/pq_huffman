@@ -117,24 +117,16 @@ static void config_free(config_t* config) {
     }
 }
 
-static void run(const config_t* config) {
-    long long data_size = config->m * config->num_vectors;
-    huffman_stats_t encode_stats;
-    huffman_stats_init(&encode_stats, config->num_vectors, config->m, config->k_star);
-
-    byte_t* data = malloc(sizeof(*data) * data_size);
-
-    // TODO: Don't load this shit to memory
-    FILE* indices_file = fopen(config->pq_input_indices, "rb");
-    fread(data, sizeof(byte_t), config->num_vectors * config->m, indices_file);
-    fclose(indices_file);
-
+static double* collect_non_context_stats(const config_t* config, const byte_t* data) {
     double* stats = malloc(sizeof(*stats) * config->m * config->k_star);
     for (int i = 0; i < config->m * config->k_star; ++i) {
         stats[i] = 0.0;
     }
 
-    for (byte_t* vec_it = data; vec_it != data + data_size; vec_it += config->m) {
+    for (const byte_t* vec_it = data;
+         vec_it != data + config->m * config->num_vectors;
+         vec_it += config->m)
+    {
         for (int i = 0; i < config->m; ++i) {
             stats[config->k_star * i + *(vec_it + i)] += 1;
         }
@@ -149,11 +141,95 @@ static void run(const config_t* config) {
         }
         assert((long long) stats_sum == config->num_vectors);
     }
+    return stats;
+}
+
+static double* collect_context_stats(const config_t* config, const byte_t* data) {
+    int alphabet_size = config->k_star * config->k_star;
+    double* stats = malloc(sizeof(*stats) * config->m * alphabet_size);
+    for (int i = 0; i < config->m * alphabet_size; ++i) {
+        stats[i] = 0.0;
+    }
+
+    const byte_t* current_vec = data + config->m;
+    const byte_t* prev_vec = data;
+    for (;
+         current_vec != data + config->m * config->num_vectors;
+         current_vec += config->m, prev_vec += config->m)
+    {
+        for (int i = 0; i < config->m; ++i) {
+            stats[i * alphabet_size + (prev_vec[i] << BYTE_NUM_BITS) + current_vec[i]] += 1;
+        }
+    }
+    for (int i = 0; i < config->m; ++i) {
+        double stats_sum = 0.0;
+        for (double* stat_it = stats + alphabet_size * i;
+             stat_it != stats + alphabet_size * (i + 1);
+             ++stat_it)
+        {
+            stats_sum += *stat_it;
+        }
+        assert(((long long) stats_sum + 1) == config->num_vectors);
+    }
+
+    return stats;
+}
+
+static void encode_non_context_data(const config_t* config, const byte_t* data,
+                                    const huffman_codebook_t* codebooks, bit_stream_t* stream) {
+    for (const byte_t* vector = data;
+         vector != data + config->m * config->num_vectors;
+         vector += config->m)
+    {
+        for (int i = 0; i < config->m; ++i) {
+            const huffman_code_item_t* item = &codebooks[i].items[vector[i]];
+            bit_stream_write(stream, item->code, item->bit_length);
+        }
+    }
+}
+
+static void encode_context_data(const config_t* config, const byte_t* data,
+                                const huffman_codebook_t* codebooks, bit_stream_t* stream) {
+    const byte_t* vec_it = data + config->m;
+    const byte_t* prev_vec_it = data;
+    for (;
+         vec_it != data + config->m * config->num_vectors;
+         vec_it += config->m, prev_vec_it += config->m)
+    {
+        for (int i = 0; i < config->m; ++i) {
+            int code_index = (prev_vec_it[i] << 8) + vec_it[i];
+            const huffman_code_item_t* item = &codebooks[i].items[code_index];
+            bit_stream_write(stream, item->code, item->bit_length);
+        }
+    }
+}
+
+static void run(const config_t* config) {
+    long long data_size = config->m * config->num_vectors;
+    huffman_stats_t encode_stats;
+    huffman_stats_init(&encode_stats, config->num_vectors, config->m, config->k_star);
+
+    byte_t* data = malloc(sizeof(*data) * data_size);
+
+    // TODO: Don't load this shit to memory
+    FILE* indices_file = fopen(config->pq_input_indices, "rb");
+    fread(data, sizeof(byte_t), config->num_vectors * config->m, indices_file);
+    fclose(indices_file);
+
+    double* stats;
+    int alphabet_size = 0;
+    if (config->context) {
+        stats = collect_context_stats(config, data);
+        alphabet_size = config->k_star * config->k_star;
+    } else {
+        stats = collect_non_context_stats(config, data);
+        alphabet_size = config->k_star;
+    }
 
     huffman_codebook_t* codebooks = malloc(sizeof(*codebooks) * config->m);
     for (int i = 0; i < config->m; ++i) {
-        double* stats_part = stats + config->k_star * i;
-        huffman_codebook_encode_init(&codebooks[i], config->k_star, stats_part);
+        double* stats_part = stats + alphabet_size * i;
+        huffman_codebook_encode_init(&codebooks[i], alphabet_size, stats_part);
         double estimation = huffman_estimate_size(&codebooks[i], stats_part);
         huffman_stats_push(&encode_stats, i, estimation);
     }
@@ -174,11 +250,10 @@ static void run(const config_t* config) {
 
     FILE* encoded_indices_file = fopen(config->output_encoded_indices, "wb");
     bit_stream_t* stream = bit_stream_create_from_file(encoded_indices_file);
-    for (byte_t* vector = data; vector != data + data_size; vector += config->m) {
-        for (int i = 0; i < config->m; ++i) {
-            const huffman_code_item_t* item = &codebooks[i].items[vector[i]];
-            bit_stream_write(stream, item->code, item->bit_length);
-        }
+    if (config->context) {
+        encode_context_data(config, data, codebooks, stream);
+    } else {
+        encode_non_context_data(config, data, codebooks, stream);
     }
     stream = bit_stream_destroy(stream);
     fclose(encoded_indices_file);
@@ -186,6 +261,7 @@ static void run(const config_t* config) {
     for (int i = 0; i < config->m; ++i) {
         huffman_codebook_destroy(&codebooks[i]);
     }
+    free(stats);
     free(data);
 }
 

@@ -36,6 +36,8 @@ static unsigned int huffman_codebook_read_bit_length(FILE* file) {
 
 void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file) {
     fwrite(&codebook->alphabet_size, 1, sizeof(codebook->alphabet_size), file);
+    byte_t is_context_byte = codebook->is_context;
+    fwrite(&is_context_byte, 1, sizeof(is_context_byte), file);
     for (const huffman_code_item_t* item = codebook->items;
          item != codebook->items + codebook->alphabet_size;
          ++item)
@@ -55,6 +57,9 @@ void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file) {
 
 void huffman_codebook_load(huffman_codebook_t* codebook, FILE* file) {
     fread(&codebook->alphabet_size, 1, sizeof(codebook->alphabet_size), file);
+    byte_t is_context_byte = 0;
+    fread(&is_context_byte, 1, sizeof(is_context_byte), file);
+    codebook->is_context = is_context_byte;
     codebook->items = malloc(sizeof(*codebook->items) * codebook->alphabet_size);
     int bitfield_num_bytes = 0;
     for (huffman_code_item_t* item = codebook->items;
@@ -90,6 +95,7 @@ void huffman_codebook_destroy(huffman_codebook_t* codebook) {
     codebook->items = NULL;
 
     codebook->alphabet_size = 0;
+    codebook->is_context = 0;
 }
 
 #ifdef _HUFFMAN_CODEBOOK_TEST
