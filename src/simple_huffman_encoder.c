@@ -13,6 +13,8 @@ typedef struct _config {
     int m;
     int k_star;
     int only_estimate;
+    int sort;
+    int context;
 
     char* pq_input_indices;
     // char* pq_input_centroids;
@@ -39,7 +41,8 @@ static char* concat(const char* left, const char* right) {
 }
 
 static void print_help(const char* argv0) {
-    fprintf(stderr, "Usage: %s <pq-output-template> <output-template> <m>\n", argv0);
+    fprintf(stderr, "Usage: %s <pq-output-template> <output-template> <m>"
+                    " [--no-sort] [--no-context] [--only-estimate]\n", argv0);
     exit(1);
 }
 
@@ -62,10 +65,18 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
     config->output_template = argv[2];
     config->m = atoi(argv[3]);
     config->only_estimate = 0;
+    config->sort = 1;
+    config->context = 1;
 
     for (const char** arg = argv + 4; *arg; ++arg) {
         if (!strcmp(*arg, "--only-estimate")) {
             config->only_estimate = 1;
+        } else if (!strcmp(*arg, "--no-sort")) {
+            config->sort = 0;
+            fprintf(stderr, "WARNING: --no-sort may not be implemented yet\n");
+        } else if (!strcmp(*arg, "--no-context")) {
+            config->context = 0;
+            fprintf(stderr, "WARNING: --no-context may not be implemented yet\n");
         } else {
             fprintf(stderr, "Unknown arg: %s\n", *arg);
             print_help(argv[0]);

@@ -27,7 +27,7 @@ diff_ts() {
 }
 
 ifif() {
-    if [ "$1" -a "$1" != 'false' ]
+    if [ "$1" -a "$1" != 'false' -a "$1" != '0' ]
     then
         echo "$2"
     else
@@ -119,7 +119,7 @@ then
 
     start=$(now_ts)
     # TODO: sort and context
-    ./simple_huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+    ./simple_huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $(ifif "$SORT" '' '--no-sort') $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time"
