@@ -190,16 +190,20 @@ static void encode_non_context_data(const config_t* config, const byte_t* data,
 
 static void encode_context_data(const config_t* config, const byte_t* data,
                                 const huffman_codebook_t* codebooks, bit_stream_t* stream) {
-    const byte_t* vec_it = data + config->m;
-    const byte_t* prev_vec_it = data;
+    const byte_t* vec_it = data;
+    const byte_t* prev_vec_it = NULL;
     for (;
          vec_it != data + config->m * config->num_vectors;
-         vec_it += config->m, prev_vec_it += config->m)
+         prev_vec_it = vec_it, vec_it += config->m)
     {
         for (int i = 0; i < config->m; ++i) {
-            int code_index = (prev_vec_it[i] << 8) + vec_it[i];
-            const huffman_code_item_t* item = &codebooks[i].items[code_index];
-            bit_stream_write(stream, item->code, item->bit_length);
+            if (prev_vec_it) {
+                int code_index = (prev_vec_it[i] << 8) + vec_it[i];
+                const huffman_code_item_t* item = &codebooks[i].items[code_index];
+                bit_stream_write(stream, item->code, item->bit_length);
+            } else {
+                bit_stream_write(stream, vec_it + i, BYTE_NUM_BITS);
+            }
         }
     }
 }
@@ -217,19 +221,22 @@ static void run(const config_t* config) {
     fclose(indices_file);
 
     double* stats;
-    int alphabet_size = 0;
+    int alphabet_size = config->k_star;
     if (config->context) {
         stats = collect_context_stats(config, data);
-        alphabet_size = config->k_star * config->k_star;
+        alphabet_size *= config->k_star;
     } else {
         stats = collect_non_context_stats(config, data);
-        alphabet_size = config->k_star;
     }
 
     huffman_codebook_t* codebooks = malloc(sizeof(*codebooks) * config->m);
     for (int i = 0; i < config->m; ++i) {
         double* stats_part = stats + alphabet_size * i;
-        huffman_codebook_encode_init(&codebooks[i], alphabet_size, stats_part);
+        if (config->context) {
+            huffman_codebook_context_encode_init(codebooks + i, config->k_star, stats_part);
+        } else {
+            huffman_codebook_encode_init(codebooks + i, config->k_star, stats_part);
+        }
         double estimation = huffman_estimate_size(&codebooks[i], stats_part);
         huffman_stats_push(&encode_stats, i, estimation);
     }

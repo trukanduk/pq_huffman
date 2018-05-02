@@ -33,6 +33,12 @@ simple_huffman_encoder.o: simple_huffman_encoder.c huffman.h bitstream.h
 
 all_test: bitstream_test huffman_encode_test huffman_decode_test huffman_codebook_test
 
+run_tests: all_test
+	echo "============ BITSTREAM =============" ; ./bitstream_test && echo "\nBITSTREAM OK\n\n"
+	echo "============ HUFFMAN ENCODE =============" ; ./huffman_encode_test && echo "\nHUFFMAN ENCODE OK\n\n"
+	echo "============ HUFFMAN DECODE =============" ; ./huffman_decode_test && echo "\nHUFFMAN DECODE OK\n\n"
+	echo "============ HUFFMAN CODEBOOK =============" ; ./huffman_codebook_test && echo "\nHUFFMAN CODEBOOK OK\n\n"
+
 bitstream_test: bitstream.c bitstream.h
 	gcc bitstream.c -o bitstream_test $(CC_FLAGS) -D_BITSTREAM_TEST
 

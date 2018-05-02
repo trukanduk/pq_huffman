@@ -250,7 +250,8 @@ void huffman_codebook_context_encode_init(huffman_codebook_t* codebook, int alph
 
 double huffman_estimate_size(const huffman_codebook_t* codebook, const double* symbol_counts) {
     double result = 0;
-    for (int symbol_id = 0; symbol_id < codebook->alphabet_size; ++symbol_id) {
+    int num_items = codebook->alphabet_size * (codebook->is_context ? codebook->alphabet_size : 1);
+    for (int symbol_id = 0; symbol_id < num_items; ++symbol_id) {
         result += symbol_counts[symbol_id] * codebook->items[symbol_id].bit_length;
     }
     return result;
