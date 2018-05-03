@@ -7,4 +7,4 @@ src/nn_temp.fvecs
 src/*.o
 src/*_test
 src/pq_encoder
-src/simple_huffman_encoder
+src/huffman_encoder

@@ -95,9 +95,9 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
 
     config->pq_input_indices = concat(config->pq_input_template, "pq_indices.bvecsl");
     // config->pq_input_centroids = concat(config->pq_input_template, "pq_centroids.fvecsl");
-    config->output_codebooks = concat(config->output_template, "simple_huffman_codebooks.bin");
-    config->output_encoded_indices = concat(config->output_template, "simple_huffman_indices.bin");
-    config->output_stats = concat(config->output_template, "simple_huffman_stats.txt");
+    config->output_codebooks = concat(config->output_template, "huffman_codebooks.bin");
+    config->output_encoded_indices = concat(config->output_template, "huffman_indices.bin");
+    config->output_stats = concat(config->output_template, "huffman_stats.txt");
 
     config->num_vectors = load_num_vectors(config->pq_input_indices, config->m);
 }

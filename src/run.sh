@@ -6,7 +6,7 @@ print_help() {
     echo "Usage NUM_NN=100 NUM_THREADS=4 $0 nn-exact <dataset>" >&2
     echo "      NUM_NN=100 NUM_THREADS=4 NUM_DIM=3 NUM_SPLITS=10 NUM_BLOSKS=11 $0 nn-fast <dataset>" >&2
     echo "      M=8 NUM_THREADS=4 $0 pq <dataset>" >&2
-    echo "      M=8 SORT=1 CONTEXT=0 $0 simple-huffman <dataset>" >&2
+    echo "      M=8 SORT=1 CONTEXT=0 $0 huffman <dataset>" >&2
     exit 1
 }
 
@@ -102,9 +102,9 @@ then
     echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
     echo "    Done in $(diff_iso $start)"
 
-elif [ "$action" = 'simple-huffman' ]
+elif [ "$action" = 'huffman' ]
 then
-    make simple_huffman_encoder || exit 1
+    make huffman_encoder || exit 1
 
     M=${M:-8}
     SORT=${SORT:-sort}
@@ -116,7 +116,7 @@ then
         exit 1
     fi
 
-    OUT_DIR="$PQ_HOME/out/huffman_simple/${dataset}_${M}_$(ifif "$CONTEXT" 'context' 'stupid')_${SORT}"
+    OUT_DIR="$PQ_HOME/out/huffman/${dataset}_${M}_$(ifif "$CONTEXT" 'context' 'stupid')_${SORT}"
     mkdir -p "$OUT_DIR"
 
     echo "Starting fast $dataset with M=$M SORT=$SORT CONTEXT=$CONTEXT at $(now_iso)..."
@@ -131,7 +131,7 @@ then
     then
         SORT_FLAG='--no-sort'
     fi
-    ./simple_huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+    ./huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time"
