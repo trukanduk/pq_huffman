@@ -2,10 +2,17 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 
 #include "bitstream.h"
 #include "huffman.h"
 #include "stats.h"
+
+enum {
+    SORT_NOSORT = 0,
+    SORT_SORT = 1,
+    SORT_SHUFFLE = 2
+};
 
 typedef struct _config {
     const char* pq_input_template;
@@ -65,15 +72,16 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
     config->output_template = argv[2];
     config->m = atoi(argv[3]);
     config->only_estimate = 0;
-    config->sort = 1;
+    config->sort = SORT_SORT;
     config->context = 1;
 
     for (const char** arg = argv + 4; *arg; ++arg) {
         if (!strcmp(*arg, "--only-estimate")) {
             config->only_estimate = 1;
         } else if (!strcmp(*arg, "--no-sort")) {
-            config->sort = 0;
-            fprintf(stderr, "WARNING: --no-sort may not be implemented yet\n");
+            config->sort = SORT_NOSORT;
+        } else if (!strcmp(*arg, "--shuffle")) {
+            config->sort = SORT_SHUFFLE;
         } else if (!strcmp(*arg, "--no-context")) {
             config->context = 0;
             fprintf(stderr, "WARNING: --no-context may not be implemented yet\n");
@@ -208,17 +216,41 @@ static void encode_context_data(const config_t* config, const byte_t* data,
     }
 }
 
+static void shuffle(const config_t* config, byte_t* data) {
+    byte_t* tmp = malloc(sizeof(byte_t) * config->m);
+    int vec_size = config->m * sizeof(byte_t);
+    for (int i = config->num_vectors - 1; i >= 1; --i) {
+        int j = 1LL * rand() * i / RAND_MAX;
+
+        memmove(tmp, data + i * config->m, vec_size);
+        memmove(data + i * config->m, data + j * config->m, vec_size);
+        memmove(data + j * config->m, tmp, vec_size);
+    }
+    free(tmp);
+}
+
+static int sort_indices_comparator_m;
+static int sort_indices_comparator(const void* left, const void* right) {
+    return strncmp(left, right, sort_indices_comparator_m);
+}
+
 static void run(const config_t* config) {
     long long data_size = config->m * config->num_vectors;
     huffman_stats_t encode_stats;
     huffman_stats_init(&encode_stats, config->num_vectors, config->m, config->k_star);
 
     byte_t* data = malloc(sizeof(*data) * data_size);
-
     // TODO: Don't load this shit to memory
     FILE* indices_file = fopen(config->pq_input_indices, "rb");
     fread(data, sizeof(byte_t), config->num_vectors * config->m, indices_file);
     fclose(indices_file);
+
+    if (config->sort == SORT_SHUFFLE) {
+        shuffle(config, data);
+    } else if (config->sort == SORT_SORT) {
+        sort_indices_comparator_m = config->m;
+        qsort(data, config->num_vectors, config->m * sizeof(byte_t), sort_indices_comparator);
+    }
 
     double* stats;
     int alphabet_size = config->k_star;
@@ -273,6 +305,8 @@ static void run(const config_t* config) {
 }
 
 int main(int argc, const char* argv[]) {
+    srand(time(NULL));
+
     config_t config;
     parse_args(&config, argc, argv);
 

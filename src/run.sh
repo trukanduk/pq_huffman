@@ -85,7 +85,7 @@ then
 
 elif [ "$action" = 'pq' ]
 then
-    make pq || exit 1
+    make pq_encoder || exit 1
 
     M=${M:-8}
     NUM_THREADS=${NUM_THREADS:-1}
@@ -96,7 +96,7 @@ then
     echo "Starting fast $dataset with M=$M, NUM_THREADS=$NUM_THREADS at $(now_iso)..."
 
     start=$(now_ts)
-    ./pq "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" $M \
+    ./pq_encoder "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" $M \
             --num-threads $NUM_THREADS --compute-error >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
@@ -107,10 +107,16 @@ then
     make simple_huffman_encoder || exit 1
 
     M=${M:-8}
-    SORT=${SORT:-1}
+    SORT=${SORT:-sort}
     CONTEXT=${CONTEXT:-1}
 
-    OUT_DIR="$PQ_HOME/out/huffman_simple/${dataset}_${M}_$(ifif "$CONTEXT" 'context' 'stupid')_$(ifif "$SORT" 'sort' 'nosort')"
+    if [ "$SORT" != 'sort' -a "$SORT" != 'nosort' -a "$SORT" != 'shuffle' ]
+    then
+        echo "Invalid SORT argument: $SORT. Expected one of 'sort', 'nosort', 'shuffle'" >&2
+        exit 1
+    fi
+
+    OUT_DIR="$PQ_HOME/out/huffman_simple/${dataset}_${M}_$(ifif "$CONTEXT" 'context' 'stupid')_${SORT}"
     mkdir -p "$OUT_DIR"
 
     echo "Starting fast $dataset with M=$M SORT=$SORT CONTEXT=$CONTEXT at $(now_iso)..."
@@ -118,8 +124,14 @@ then
     PQ_DIR="$PQ_HOME/out/pq/${dataset}_${M}"
 
     start=$(now_ts)
-    # TODO: sort and context
-    ./simple_huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $(ifif "$SORT" '' '--no-sort') $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+    if [ "$SORT" = 'shuffle' ]
+    then
+        SORT_FLAG='--shuffle'
+    elif [ "$SORT" = 'nosort' ]
+    then
+        SORT_FLAG='--no-sort'
+    fi
+    ./simple_huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time"
