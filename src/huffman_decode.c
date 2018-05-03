@@ -113,13 +113,24 @@ huffman_decoder_t* huffman_decoder_destroy(huffman_decoder_t* decoder) {
 }
 
 void huffman_decoder_reset(huffman_decoder_t* decoder) {
-    if (decoder->is_context) {
-        decoder->current_node = NULL;
-        decoder->prev_symbol = HUFFMAN_NO_SYMBOL;
-        decoder->current_noparent_symbol_length = 0;
-        decoder->current_noparent_symbol = 0;
-    } else {
+    huffman_decoder_set_prev_symbol(decoder, HUFFMAN_NO_SYMBOL);
+}
+
+void huffman_decoder_set_prev_symbol(huffman_decoder_t* decoder, int prev_symbol) {
+    if (!decoder->is_context) {
         decoder->current_node = decoder->root_node;
+        return;
+    }
+
+    decoder->current_noparent_symbol_length = 0;
+    decoder->current_noparent_symbol = 0;
+    decoder->prev_symbol = prev_symbol;
+
+    if (prev_symbol == HUFFMAN_NO_SYMBOL) {
+        decoder->current_node = NULL;
+    } else {
+        assert(prev_symbol < decoder->alphabet_size);
+        decoder->current_node = decoder->root_node + prev_symbol;
     }
 }
 
@@ -133,11 +144,7 @@ int huffman_decoder_push_bit(huffman_decoder_t* decoder, int bit_value) {
             int current_symbol = decoder->current_noparent_symbol;
             assert(decoder->current_noparent_symbol < decoder->alphabet_size);
 
-            decoder->current_noparent_symbol = 0;
-            decoder->current_noparent_symbol_length = 0;
-            decoder->prev_symbol = current_symbol;
-            decoder->current_node = decoder->root_node + current_symbol;
-
+            huffman_decoder_set_prev_symbol(decoder, current_symbol);
             return current_symbol;
         } else {
             return HUFFMAN_NO_SYMBOL;
@@ -150,12 +157,7 @@ int huffman_decoder_push_bit(huffman_decoder_t* decoder, int bit_value) {
         return HUFFMAN_INVALID_SYMBOL;
     } else if (decoder->current_node->symbol != HUFFMAN_NO_SYMBOL) {
         int symbol = decoder->current_node->symbol;
-        if (decoder->is_context) {
-            decoder->prev_symbol = symbol;
-            decoder->current_node = decoder->root_node + decoder->prev_symbol;
-        } else {
-            huffman_decoder_reset(decoder);
-        }
+        huffman_decoder_set_prev_symbol(decoder, symbol);
         return symbol;
     } else {
         return HUFFMAN_NO_SYMBOL;

@@ -35,6 +35,7 @@ huffman_decoder_t* huffman_decoder_create(const huffman_codebook_t* codebook);
 huffman_decoder_t* huffman_decoder_destroy(huffman_decoder_t* decoder); // NOTE: returns NULL
 
 void huffman_decoder_reset(huffman_decoder_t* decoder);
+void huffman_decoder_set_prev_symbol(huffman_decoder_t* decoder, int prev_symbol);
 int huffman_decoder_push_bit(huffman_decoder_t* decoder, int bit_value);
 int huffman_decoder_push_bits(huffman_decoder_t* decoder, const byte_t* bits, int bit_length);
 
