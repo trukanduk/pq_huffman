@@ -84,7 +84,6 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
             config->sort = SORT_SHUFFLE;
         } else if (!strcmp(*arg, "--no-context")) {
             config->context = 0;
-            fprintf(stderr, "WARNING: --no-context may not be implemented yet\n");
         } else {
             fprintf(stderr, "Unknown arg: %s\n", *arg);
             print_help(argv[0]);
@@ -269,6 +268,7 @@ static void run(const config_t* config) {
         } else {
             huffman_codebook_encode_init(codebooks + i, config->k_star, stats_part);
         }
+
         double estimation = huffman_estimate_size(&codebooks[i], stats_part);
         huffman_stats_push(&encode_stats, i, estimation);
     }
@@ -282,12 +282,16 @@ static void run(const config_t* config) {
     }
 
     FILE* codebooks_file = fopen(config->output_codebooks, "wb");
+    unsigned int m_int = config->m;
+    fwrite(&m_int, sizeof(m_int), 1, codebooks_file);
     for (int i = 0; i < config->m; ++i) {
         huffman_codebook_save(codebooks + i, codebooks_file);
     }
     fclose(codebooks_file);
 
     FILE* encoded_indices_file = fopen(config->output_encoded_indices, "wb");
+    unsigned long long num_vectors_ll = config->num_vectors;
+    fwrite(&num_vectors_ll, sizeof(num_vectors_ll), 1, encoded_indices_file);
     bit_stream_t* stream = bit_stream_create_from_file(encoded_indices_file);
     if (config->context) {
         encode_context_data(config, data, codebooks, stream);

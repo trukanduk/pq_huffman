@@ -6,7 +6,7 @@ print_help() {
     echo "Usage NUM_NN=100 NUM_THREADS=4 $0 nn-exact <dataset>" >&2
     echo "      NUM_NN=100 NUM_THREADS=4 NUM_DIM=3 NUM_SPLITS=10 NUM_BLOSKS=11 $0 nn-fast <dataset>" >&2
     echo "      M=8 NUM_THREADS=4 $0 pq <dataset>" >&2
-    echo "      M=8 SORT=1 CONTEXT=0 $0 huffman <dataset>" >&2
+    echo "      M=8 SORT=(nosoft|sort|shuffle) CONTEXT=0 $0 huffman <dataset>" >&2
     exit 1
 }
 
@@ -46,7 +46,7 @@ then
     OUT_DIR="$PQ_HOME/out/nn/${dataset}_${NUM_NN}"
     mkdir -p $OUT_DIR
 
-    echo "Starting exact $dataset with NUM_NN=$NUM_NN, NUM_THREADS=$NUM_THREADS at $(now_iso)"
+    echo "Starting nn-exact $dataset with NUM_NN=$NUM_NN, NUM_THREADS=$NUM_THREADS at $(now_iso)"
 
     start=$(now_ts)
     python3 compute_nn.py "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" ${NUM_NN:-50} --num-threads ${NUM_THREADS:-1} --light-indices --light-dist || exit 1
@@ -69,7 +69,7 @@ then
     OUT_DIR="$PQ_HOME/out/nn/${dataset}_${NUM_NN}_d${NUM_DIM}_s${NUM_SPLITS}_b${NUM_BLOCKS}"
     mkdir -p "$OUT_DIR"
 
-    echo "Starting fast $dataset with NUM_NN=$NUM_NN, NUM_THREADS=$NUM_THREADS, NUM_DIM=${NUM_DIM}x${NUM_BLOCKS}/${NUM_SPLITS} at $(now_iso)..."
+    echo "Starting nn-fast $dataset with NUM_NN=$NUM_NN, NUM_THREADS=$NUM_THREADS, NUM_DIM=${NUM_DIM}x${NUM_BLOCKS}/${NUM_SPLITS} at $(now_iso)..."
 
     start=$(now_ts)
     ./compute_nn_fast "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" $NUM_NN \
@@ -93,7 +93,7 @@ then
     OUT_DIR="$PQ_HOME/out/pq/${dataset}_${M}"
     mkdir -p "$OUT_DIR"
 
-    echo "Starting fast $dataset with M=$M, NUM_THREADS=$NUM_THREADS at $(now_iso)..."
+    echo "Starting pq $dataset with M=$M, NUM_THREADS=$NUM_THREADS at $(now_iso)..."
 
     start=$(now_ts)
     ./pq_encoder "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" $M \
@@ -119,11 +119,10 @@ then
     OUT_DIR="$PQ_HOME/out/huffman/${dataset}_${M}_$(ifif "$CONTEXT" 'context' 'stupid')_${SORT}"
     mkdir -p "$OUT_DIR"
 
-    echo "Starting fast $dataset with M=$M SORT=$SORT CONTEXT=$CONTEXT at $(now_iso)..."
+    echo "Starting huffman $dataset with M=$M SORT=$SORT CONTEXT=$CONTEXT at $(now_iso)..."
 
     PQ_DIR="$PQ_HOME/out/pq/${dataset}_${M}"
 
-    start=$(now_ts)
     if [ "$SORT" = 'shuffle' ]
     then
         SORT_FLAG='--shuffle'
@@ -131,7 +130,65 @@ then
     then
         SORT_FLAG='--no-sort'
     fi
+    start=$(now_ts)
     ./huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+
+    t=$(diff_ts $start)
+    echo $t >> "$OUT_DIR/time"
+    echo "    Done in $(diff_iso $start)"
+
+elif [ "$action" = 'huffman-decode' ]
+then
+    make huffman_decoder || exit 1
+
+    M=${M:-8}
+    INPUT=${INPUT:-sort}
+    ACTION=${ACTION:-decode-dry}
+    CONTEXT=${CONTEXT:-1}
+
+    if [ "$ACTION" != 'decode' -a "$ACTION" != 'decode-dry' -a "$ACTION" != 'check' ]
+    then
+        echo "Invalid ACTION argument: $ACTION. Expected one of 'decode', 'decode-dry', 'check'" >&2
+        exit 1
+    fi
+
+    if [ "$INPUT" != 'sort' -a "$INPUT" != 'nosort' -a "$INPUT" != 'shuffle' ]
+    then
+        echo "Invalid INPUT argument: $INPUT. Expected one of 'sort', 'nosort', 'shuffle'" >&2
+        exit 1
+    fi
+
+    OUT_DIR="$PQ_HOME/out/huffman_decoded/${dataset}_${M}_$(ifif "$CONTEXT" 'context' 'stupid')_${INPUT}"
+    mkdir -p "$OUT_DIR"
+
+    echo "Starting huffman-decode $dataset with M=$M ACTION=$ACTION INPUT=$INPUT CONTEXT=$CONTEXT at $(now_iso)..."
+
+    PQ_DIR="$PQ_HOME/out/pq/${dataset}_${M}"
+    if [ ! -d "$PQ_DIR" -a "$ACTION" = 'check' ]
+    then
+        echo "No PQ directory: $PQ_DIR" >&2
+        exit 1
+    fi
+
+    ENCODED_DIR="$PQ_HOME/out/huffman/${dataset}_${M}_$(ifif "$CONTEXT" 'context' 'stupid')_${INPUT}"
+    if [ ! -d "$ENCODED_DIR" ]
+    then
+        echo "No input directory $ENCODED_DIR" >&2
+        exit 1
+    fi
+
+    if [ "$ACTION" = 'check' ]
+    then
+        ACTION_FLAG='--check-file'
+        ACTION_FLAG2="$PQ_DIR/pq_indices.bvecsl"
+    elif [ "$ACTION" = 'decode' ]
+    then
+        ACTION_FLAG='--output-file'
+        ACTION_FLAG2="$OUT_DIR/pq_indices_decoded.bvecsl"
+    fi
+
+    start=$(now_ts)
+    ./huffman_decoder "$ENCODED_DIR/" $ACTION_FLAG $ACTION_FLAG2 >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time"

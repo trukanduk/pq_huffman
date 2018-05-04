@@ -3,6 +3,35 @@
 #include <assert.h>
 #include <stdlib.h>
 
+void huffman_dump_code(const huffman_code_item_t* item, FILE* f) {
+    if (!item->code) {
+        fprintf(f, "-");
+        return;
+    }
+
+    for (int bit_index = 0; bit_index < item->bit_length; ++bit_index) {
+        int byte_offset = bit_index / BYTE_NUM_BITS;
+        int bit_offset = bit_index % BYTE_NUM_BITS;
+        int bit_value = (item->code[byte_offset] >> (BYTE_NUM_BITS - bit_offset - 1)) & 1;
+        fprintf(f, "%d", bit_value);
+    }
+    fprintf(f, " (%d)", item->bit_length);
+}
+
+void huffman_codebook_dump(const huffman_codebook_t* codebook, FILE* f) {
+    for (int item_index = 0; item_index < codebook->num_items; ++item_index) {
+        if (codebook->is_context) {
+            int src_symbol = item_index / codebook->alphabet_size;
+            int dst_symbol = item_index % codebook->alphabet_size;
+            fprintf(f, "%d -> %d: ", src_symbol, dst_symbol);
+        } else {
+            fprintf(f, "%d: ", item_index);
+        }
+        huffman_dump_code(codebook->items + item_index, f);
+        fprintf(f, "\n");
+    }
+}
+
 static void huffman_codebook_write_bit_length(FILE* file, unsigned int bit_length) {
     unsigned int bit_length_rest = bit_length;
     int continous_flag = 1;
@@ -38,8 +67,9 @@ void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file) {
     fwrite(&codebook->alphabet_size, 1, sizeof(codebook->alphabet_size), file);
     byte_t is_context_byte = codebook->is_context;
     fwrite(&is_context_byte, 1, sizeof(is_context_byte), file);
+
     for (const huffman_code_item_t* item = codebook->items;
-         item != codebook->items + codebook->alphabet_size;
+         item != codebook->items + codebook->num_items;
          ++item)
     {
         huffman_codebook_write_bit_length(file, item->bit_length);
@@ -47,7 +77,7 @@ void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file) {
 
     bit_stream_t* stream = bit_stream_create_from_file(file);
     for (const huffman_code_item_t* item = codebook->items;
-         item != codebook->items + codebook->alphabet_size;
+         item != codebook->items + codebook->num_items;
          ++item)
     {
         bit_stream_write(stream, item->code, item->bit_length);
@@ -60,10 +90,16 @@ void huffman_codebook_load(huffman_codebook_t* codebook, FILE* file) {
     byte_t is_context_byte = 0;
     fread(&is_context_byte, 1, sizeof(is_context_byte), file);
     codebook->is_context = is_context_byte;
-    codebook->items = malloc(sizeof(*codebook->items) * codebook->alphabet_size);
+
+    codebook->num_items = codebook->alphabet_size;
+    if (codebook->is_context) {
+        codebook->num_items *= codebook->alphabet_size;
+    }
+
+    codebook->items = malloc(sizeof(*codebook->items) * codebook->num_items);
     int bitfield_num_bytes = 0;
     for (huffman_code_item_t* item = codebook->items;
-         item != codebook->items + codebook->alphabet_size;
+         item != codebook->items + codebook->num_items;
          ++item)
     {
         item->bit_length = huffman_codebook_read_bit_length(file);
@@ -73,7 +109,7 @@ void huffman_codebook_load(huffman_codebook_t* codebook, FILE* file) {
     byte_t* next_code = codebook->codefield;
     bit_stream_t* stream = bit_stream_create_from_file(file);
     for (huffman_code_item_t* item = codebook->items;
-         item != codebook->items + codebook->alphabet_size;
+         item != codebook->items + codebook->num_items;
          ++item)
     {
         if (item->bit_length > 0) {
@@ -100,52 +136,78 @@ void huffman_codebook_destroy(huffman_codebook_t* codebook) {
 
 #ifdef _HUFFMAN_CODEBOOK_TEST
 
-// NOTE: should be greater then 0x7f = 127 to test multi-byte bit_length compression
-#define NUM_SYMBOLS (1 << 15)
-int main() {
-    double* counts = malloc(sizeof(*counts) * NUM_SYMBOLS);
+// #define NUM_SYMBOLS (1 << 15)
+void run(int context, int num_symbols) {
+    printf("Starting %s test\n", context ? "context" : "non-context");
+    int num_items = num_symbols;
+    if (context) {
+        num_items *= num_symbols;
+    }
+    double* counts = malloc(sizeof(*counts) * num_items);
     counts[0] = 0.0;
     counts[1] = 1.0;
-    for (int i = 2; i < NUM_SYMBOLS; ++i) {
+    for (int i = 2; i < num_items; ++i) {
         counts[i] = counts[i - 1] + counts[i - 2];
     }
     huffman_codebook_t codebook;
-    huffman_codebook_encode_init(&codebook, NUM_SYMBOLS, &counts[0]);
-    printf("Encoded\n");
-    printf("The longest code is %d (1<<14 = %d)\n", codebook.items[1].bit_length, 1 << 14);
+    if (context) {
+        huffman_codebook_context_encode_init(&codebook, num_symbols, counts);
+    } else {
+        huffman_codebook_encode_init(&codebook, num_symbols, counts);
+    }
+    // printf("The longest code is %d (1<<7 = %d)\n", codebook.items[1].bit_length, 1 << 7);
 
     FILE* f = fopen("/tmp/codebook.bin", "wb");
+    int x = 0;
+    fwrite(&x, sizeof(x), 1, f);
+    huffman_codebook_save(&codebook, f);
     huffman_codebook_save(&codebook, f);
     fclose(f);
-    printf("Saved\n");
 
     huffman_codebook_t codebook2;
+    huffman_codebook_t codebook3;
     f = fopen("/tmp/codebook.bin", "rb");
+    fread(&x, sizeof(x), 1, f);
     huffman_codebook_load(&codebook2, f);
+    huffman_codebook_load(&codebook3, f);
     fclose(f);
-    printf("Loaded\n");
+
+    assert(codebook.is_context == codebook2.is_context);
+    assert(codebook.is_context == codebook2.is_context);
 
     assert(codebook.alphabet_size == codebook2.alphabet_size);
-    for (int i = 0; i < codebook.alphabet_size; ++i) {
+    assert(codebook.alphabet_size == codebook3.alphabet_size);
+    for (int i = 0; i < num_items; ++i) {
         assert(codebook.items[i].bit_length == codebook2.items[i].bit_length);
+        assert(codebook.items[i].bit_length == codebook3.items[i].bit_length);
         for (int bit_index = 0; bit_index < codebook.items[i].bit_length; ++bit_index) {
             int byte_offset = bit_index / BYTE_NUM_BITS;
             int bit_offset = bit_index % BYTE_NUM_BITS;
 
             byte_t byte1 = codebook.items[i].code[byte_offset];
             byte_t byte2 = codebook2.items[i].code[byte_offset];
+            byte_t byte3 = codebook3.items[i].code[byte_offset];
 
             int bit1 = (byte1 >> (BYTE_NUM_BITS - bit_offset - 1)) & 1;
             int bit2 = (byte2 >> (BYTE_NUM_BITS - bit_offset - 1)) & 1;
+            int bit3 = (byte3 >> (BYTE_NUM_BITS - bit_offset - 1)) & 1;
             assert(bit1 == bit2);
+            assert(bit1 == bit3);
         }
     }
 
+    huffman_codebook_destroy(&codebook3);
     huffman_codebook_destroy(&codebook2);
     huffman_codebook_destroy(&codebook);
     free(counts);
+    printf("OK\n\n");
+}
+
+// NOTE: max length should be greater then 0x7f = 127 to test multi-byte bit_length compression
+int main() {
+    run(0, 1<<10);
+    run(1, 1<<5);
     return 0;
 }
-#undef NUM_SYMBOLS
 
 #endif // _HUFFMAN_CODEBOOK_TEST

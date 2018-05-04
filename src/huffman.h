@@ -19,8 +19,13 @@ typedef struct _huffman_codebook {
     byte_t* codefield;
     int alphabet_size;
     int is_context;
+    int num_items; // NOTE: = alphabet_size * (is_context ? alphabet_size : 1)
     huffman_code_item_t* items;
 } huffman_codebook_t;
+
+// NOTE: Debug functions:
+void huffman_dump_code(const huffman_code_item_t* item, FILE* f);
+void huffman_codebook_dump(const huffman_codebook_t* codebook, FILE* f);
 
 void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file);
 void huffman_codebook_load(huffman_codebook_t* codebook, FILE* file);

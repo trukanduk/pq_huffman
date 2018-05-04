@@ -11,13 +11,13 @@ struct _bit_stream {
 
     byte_t* buffer;
     int mode;
-    int buffer_capacity;
-    int buffer_filled_bits;
-    int buffer_read_position;
+    long long buffer_capacity;
+    long long buffer_filled_bits;
+    long long buffer_read_position;
 };
 
 enum {
-    DEFAULT_BUFFER_SIZE = 1024,
+    DEFAULT_BUFFER_SIZE = 128 * 1024 * 1024,
 
     BIT_STREAM_MODE_UNKNOWN = 0,
     BIT_STREAM_MODE_READ = 1,
@@ -28,7 +28,7 @@ bit_stream_t* bit_stream_create_from_file(FILE* file) {
     return bit_stream_create_from_file_buffered(file, DEFAULT_BUFFER_SIZE);
 }
 
-bit_stream_t* bit_stream_create_from_file_buffered(FILE* file, int buffer_size_bytes) {
+bit_stream_t* bit_stream_create_from_file_buffered(FILE* file, long long buffer_size_bytes) {
     bit_stream_t* stream = malloc(sizeof(bit_stream_t));
     stream->file = file;
     stream->buffer = malloc(sizeof(byte_t) * buffer_size_bytes);
@@ -47,7 +47,15 @@ bit_stream_t* bit_stream_destroy(bit_stream_t* stream) {
 bit_stream_t* bit_stream_destroy_file(bit_stream_t* stream, int close_file) {
     if (stream->mode == BIT_STREAM_MODE_WRITE) {
         bit_stream_flush(stream, 1);
+    } else if (stream->mode == BIT_STREAM_MODE_READ) {
+        long long unused_bits = stream->buffer_filled_bits - stream->buffer_read_position;
+        long long pos_before = ftell(stream->file);
+        fseek(stream->file, - unused_bits / BYTE_NUM_BITS, SEEK_CUR);
+        long long pos_after = ftell(stream->file);
+        assert(pos_before - unused_bits / BYTE_NUM_BITS == pos_after
+               && "Cannot seek back a file");
     }
+
     if (close_file) {
         fclose(stream->file);
     }
@@ -60,16 +68,16 @@ bit_stream_t* bit_stream_destroy_file(bit_stream_t* stream, int close_file) {
     return NULL;
 }
 
-static void bit_stream_write_impl(bit_stream_t* stream, const byte_t* data, int bit_length) {
+static void bit_stream_write_impl(bit_stream_t* stream, const byte_t* data, long long bit_length) {
     assert(stream->mode == BIT_STREAM_MODE_UNKNOWN || stream->mode == BIT_STREAM_MODE_WRITE);
     assert(stream->buffer_filled_bits + bit_length <= stream->buffer_capacity &&
            "bit_stream buffer overflow");
 
     stream->mode = BIT_STREAM_MODE_WRITE;
-    int buffer_byte = stream->buffer_filled_bits / BYTE_NUM_BITS;
+    long long buffer_byte = stream->buffer_filled_bits / BYTE_NUM_BITS;
     int buffer_bit_offset = stream->buffer_filled_bits % BYTE_NUM_BITS;
 
-    for (int data_bit = 0; data_bit < bit_length; ++data_bit) {
+    for (long long data_bit = 0; data_bit < bit_length; ++data_bit) {
         // FIXME: bit significance is platform-dependent in general. So we ca write bytes
         //        in reversed order for some non-standard platform.
         // NOTE: write bit-by-bit to simplify the process.
@@ -101,9 +109,16 @@ int bit_stream_flush(bit_stream_t* stream, int add_pad) {
                "bit_stream: something wrong with padding");
     }
 
-    int num_bytes_to_write = stream->buffer_filled_bits / BYTE_NUM_BITS;
-    int bytes_written = fwrite(stream->buffer, sizeof(byte_t), num_bytes_to_write, stream->file);
+    long long num_bytes_to_write = stream->buffer_filled_bits / BYTE_NUM_BITS;
+    long long bytes_written = fwrite(stream->buffer, sizeof(byte_t), num_bytes_to_write,
+                                     stream->file);
+
+    if (ferror(stream->file)) {
+        perror("bit_stream: cannot flush");
+        assert(0 && "bit_stream: cannot flush");
+    }
     assert(bytes_written == num_bytes_to_write && "bit_stream: cannot flush");
+
     if (stream->buffer_filled_bits % BYTE_NUM_BITS != 0) {
         stream->buffer[0] = stream->buffer[num_bytes_to_write];
     }
@@ -113,9 +128,9 @@ int bit_stream_flush(bit_stream_t* stream, int add_pad) {
     return 1; // TODO
 }
 
-int bit_stream_write(bit_stream_t* stream, const byte_t* data, int bit_length) {
+int bit_stream_write(bit_stream_t* stream, const byte_t* data, long long bit_length) {
     while (bit_length > 0) {
-        int batch_length = bit_length;
+        long long batch_length = bit_length;
         // imin(bit_length, stream->buffer_capacity - stream->buffer_filled_bits);
         if (stream->buffer_filled_bits + batch_length > stream->buffer_capacity) {
             batch_length = (stream->buffer_capacity - stream->buffer_filled_bits) / BYTE_NUM_BITS * BYTE_NUM_BITS;
@@ -135,17 +150,23 @@ int bit_stream_write(bit_stream_t* stream, const byte_t* data, int bit_length) {
 }
 
 static void bit_stream_read_buffer(bit_stream_t* stream) {
-    stream->buffer_filled_bits =
-            fread(stream->buffer, sizeof(byte_t), stream->buffer_capacity / BYTE_NUM_BITS, stream->file) * BYTE_NUM_BITS;
+    long long bytes_red = fread(stream->buffer, sizeof(byte_t),
+                               stream->buffer_capacity / BYTE_NUM_BITS, stream->file);
+    stream->buffer_filled_bits = bytes_red * BYTE_NUM_BITS;
     if (stream->buffer_filled_bits != stream->buffer_capacity && ferror(stream->file)) {
         perror("bit_stream: error reading file");
     }
+    if (feof(stream->file) && bytes_red == 0) {
+        fprintf(stderr, "bit_stream: eof\n");
+        exit(1);
+    }
     stream->buffer_read_position = 0;
+    stream->mode = BIT_STREAM_MODE_READ;
 }
 
-void bit_stream_read(bit_stream_t* stream, byte_t* data, int bit_length) {
-    for (int bit_index = 0; bit_index < bit_length; ++bit_index) {
-        int byte_offset = bit_index / BYTE_NUM_BITS;
+void bit_stream_read(bit_stream_t* stream, byte_t* data, long long bit_length) {
+    for (long long bit_index = 0; bit_index < bit_length; ++bit_index) {
+        long long byte_offset = bit_index / BYTE_NUM_BITS;
         int bit_offset = bit_index % BYTE_NUM_BITS;
         int bit_value = bit_stream_read_bit(stream);
         if (bit_value) {
@@ -166,7 +187,7 @@ int bit_stream_read_bit(bit_stream_t* stream) {
         }
     }
 
-    int byte_num = stream->buffer_read_position / BYTE_NUM_BITS;
+    long long byte_num = stream->buffer_read_position / BYTE_NUM_BITS;
     int bit_num = stream->buffer_read_position % BYTE_NUM_BITS;
     ++stream->buffer_read_position;
     return (stream->buffer[byte_num] >> (BYTE_NUM_BITS - bit_num - 1)) & 0x01;
