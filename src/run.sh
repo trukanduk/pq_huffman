@@ -191,7 +191,7 @@ then
     ./huffman_decoder "$ENCODED_DIR/" $ACTION_FLAG $ACTION_FLAG2 >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
-    echo $t >> "$OUT_DIR/time"
+    echo $t >> "$OUT_DIR/time_${ACTION}"
     echo "    Done in $(diff_iso $start)"
 else
     echo "Unknown action: '$action'" >&2
