@@ -5,6 +5,7 @@ src/compute_nn_fast
 src/read_dists
 src/nn_temp.fvecs
 src/*.o
+src/.d
 src/*_test
 src/pq_encoder
 src/huffman_encoder

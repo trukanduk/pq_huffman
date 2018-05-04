@@ -217,9 +217,9 @@ static void encode_context_data(const config_t* config, const byte_t* data,
 
 static void shuffle(const config_t* config, byte_t* data) {
     byte_t* tmp = malloc(sizeof(byte_t) * config->m);
-    int vec_size = config->m * sizeof(byte_t);
-    for (int i = config->num_vectors - 1; i >= 1; --i) {
-        int j = 1LL * rand() * i / RAND_MAX;
+    long long vec_size = config->m * sizeof(byte_t);
+    for (long long i = config->num_vectors - 1; i >= 1; --i) {
+        long long j = 1LL * rand() * i / RAND_MAX;
 
         memmove(tmp, data + i * config->m, vec_size);
         memmove(data + i * config->m, data + j * config->m, vec_size);

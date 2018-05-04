@@ -6,6 +6,7 @@ import numpy as np
 import utils.io as io
 import json
 import math
+from collections import Iterable
 
 
 def safe_inf(x):
@@ -17,10 +18,10 @@ def calc_main_metrics(dists, prefix):
     result = {
         'num_vectors': n,
         'num_nn': nn,
-        'sum_dist': safe_inf(dists.sum()),
-        'sum_dist_per_vector': safe_inf(dists.sum() / n),
-        'sum_dist_at_nn': [safe_inf(dists[:,: i + 1].sum()) for i in range(nn)],
-        'sum_dist_per_vector_at_nn': [safe_inf(dists[:,: i + 1].sum() / n) for i in range(nn)],
+        'sum_dist': safe_inf(float(dists.sum())),
+        'sum_dist_per_vector': safe_inf(float(dists.sum()) / n),
+        'sum_dist_at_nn': [safe_inf(float(dists[:,: i + 1].sum())) for i in range(nn)],
+        'sum_dist_per_vector_at_nn': [safe_inf(float(dists[:,: i + 1].sum()) / n) for i in range(nn)],
     }
     return {prefix + '_' + k: v for k, v in result.items()}
 
@@ -33,6 +34,17 @@ def safe_listdiv(a, b, zeroval=0.0, eps=1e-5):
     return [safe_div(ai, bi, zeroval, eps) for ai, bi in zip(a, b)]
 
 
+def tolist(nparray):
+    if not isinstance(nparray, np.ndarray):
+        return nparray
+    elif nparray.dtype.kind == 'i':
+        return list(map(int, list(nparray)))
+    elif nparray.dtype.kind == 'f':
+        return list(map(float, list(nparray)))
+    else:
+        return nparray
+
+
 def calc_diff_main_metrics(result):
     for k in ['sum_dist', 'sum_dist_per_vector']:
         result['diff_' + k] = result['fast_' + k] - result['exact_' + k]
@@ -42,9 +54,9 @@ def calc_diff_main_metrics(result):
     for k in ['sum_dist_at_nn', 'sum_dist_per_vector_at_nn']:
         exact = result['exact_' + k]
         fast = result['fast_' + k]
-        diff = np.array(fast) - np.array(exact)
-        result['diff_' + k] = list(diff)
-        result['diff_perc_' + k] = safe_listdiv(list(diff), exact)
+        diff = tolist(np.array(fast) - np.array(exact))
+        result['diff_' + k] = tolist(diff)
+        result['diff_perc_' + k] = safe_listdiv(tolist(diff), exact)
         result['fast_perc_' + k] = safe_listdiv(fast, exact)
 
 
@@ -60,8 +72,8 @@ def calc_miss_indices(exact, fast):
             result[j] += len(s) - j - 1
 
     return {
-        'missed_indices_at_nn': list(result),
-        'missed_indices_per_vec_at_nn': list(result / n),
+        'missed_indices_at_nn': tolist(result),
+        'missed_indices_per_vec_at_nn': tolist(result / n),
     }
 
 
@@ -71,7 +83,7 @@ def main():
     indices_exact = io.ivecs_read(exact_template + 'nn_indices.ivecs', light=True)
     dists_exact = io.fvecs_read(exact_template + 'nn_dist.fvecs', light=True)
 
-    indices_fast = io.lvecs_read(fast_template + 'nn_indices.lvecs', light=True)
+    indices_fast = io.ivecs_read(fast_template + 'nn_indices.ivecs', light=True)
     dists_fast = io.fvecs_read(fast_template + 'nn_dist.fvecs', light=True)
 
     result = {}
@@ -80,8 +92,10 @@ def main():
     calc_diff_main_metrics(result)
     result.update(calc_miss_indices(indices_exact, indices_fast))
 
-    print(result)
-    # json.dump(result, sys.stdout)
+    # _dump_types(result)
+    # print(result)
+    json.dump(result, sys.stdout)
+    print()
 
 
 if __name__ == '__main__':
