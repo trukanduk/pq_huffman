@@ -10,6 +10,13 @@ else
     export YAEL_HOME=/home/ilya/yael/yael_v438
 fi
 
+if [ "$LD_LIBRARY_PATH" ]
+then
+    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$YAEL_HOME/yael"
+else
+    export LD_LIBRARY_PATH="$YAEL_HOME/yael"
+fi
+
 if [ -z "$PYTHONPATH" ]
 then
     export PYTHONPATH='.'
