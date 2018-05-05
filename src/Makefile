@@ -11,12 +11,12 @@ PTHREAD_FLAGS=-pthread
 LDFLAGS=-lm $(YAEL_FLAGS) $(PTHREAD_FLAGS)
 
 COMPILE.c = $(CC) $(DEPFLAGS) $(CCFLAGS) -c
-LINK.c = $(LD) -o $@ $? $(LDFLAGS)
+LINK.c = $(LD) -o $@ $(DEPS_$@) $(LDFLAGS)
 POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
 SOURCES := $(shell find . -name '*.c')
 OBJECTS := $(SOURCES:%.c=%.o)
-BINARIES := compute_nn_fast pq_encoder huffman_encoder huffman_decoder
+BINARIES := compute_nn_fast pq_encoder huffman_encoder huffman_decoder nn_huffman_estimator
 
 .PHONY: all clean
 
@@ -25,16 +25,24 @@ all: $(BINARIES)
 clean:
 	rm -f $(BINARIES) $(OBJECTS)
 
-compute_nn_fast: compute_nn_fast.o concurrent_queue.o misc.o fast_nn_temp_file.o
+DEPS_compute_nn_fast = compute_nn_fast.o concurrent_queue.o misc.o fast_nn_temp_file.o
+compute_nn_fast: $(DEPS_compute_nn_fast)
 	$(LINK.c)
 
-pq_encoder: pq_encoder.o
+DEPS_pq_encoder = pq_encoder.o misc.o vecs_io.o
+pq_encoder: $(DEPS_pq_encoder)
 	$(LINK.c)
 
-huffman_encoder: huffman_encoder.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o stats.o
+DEPS_huffman_encoder = huffman_encoder.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o stats.o misc.o vecs_io.o
+huffman_encoder: $(DEPS_huffman_encoder)
 	$(LINK.c)
 
-huffman_decoder: huffman_decoder.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o stats.o
+DEPS_huffman_decoder = huffman_decoder.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o stats.o misc.o vecs_io.o
+huffman_decoder: $(DEPS_huffman_decoder)
+	$(LINK.c)
+
+DEPS_nn_huffman_estimator = nn_huffman_estimator.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o stats.o misc.o vecs_io.o
+nn_huffman_estimator: $(DEPS_nn_huffman_estimator)
 	$(LINK.c)
 
 %.o : %.c

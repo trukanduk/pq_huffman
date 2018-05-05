@@ -9,6 +9,9 @@
 
 #include <yael/kmeans.h>
 
+#include "vecs_io.h"
+#include "misc.h"
+
 typedef struct _config {
     const char* input_filename;
     const char* output_template;
@@ -40,24 +43,6 @@ enum {
     LOAD_BATCH_SIZE = 128 * 1024
 };
 
-static char* concat(const char* a, const char* b) {
-    int alen = strlen(a);
-    int blen = strlen(b);
-    char* result = malloc(sizeof(char) * (alen + blen + 1));
-    for (int i = 0; i < alen; ++i) {
-        result[i] = a[i];
-    }
-    for (int i = 0; i < blen; ++i) {
-        result[alen + i] = b[i];
-    }
-    result[alen + blen] = '\0';
-    return result;
-}
-
-static long long minll(long long a, long long b) {
-    return (a < b ? a : b);
-}
-
 static void load_input_file_meta(const char* input_filename, long long* num_vectors,
                                  int* num_dimensions) {
     FILE* f = fopen(input_filename, "rb");
@@ -80,7 +65,7 @@ static void load_vectors_dimensions(const char* input_filename, long long num_ve
     float* batch = malloc(file_row_size * LOAD_BATCH_SIZE);
     long long got_vectors = 0LL;
     while (got_vectors < num_vectors) {
-        long long current_batch_size = minll(num_vectors - got_vectors, LOAD_BATCH_SIZE);
+        long long current_batch_size = iminll(num_vectors - got_vectors, LOAD_BATCH_SIZE);
         long long red_rows = fread(batch, file_row_size, current_batch_size, f);
         for (long long row_index = 0; row_index < red_rows; ++row_index) {
             memcpy(output + (got_vectors + row_index) * num_dimensions,
@@ -105,7 +90,7 @@ static double compute_error(const char* input_filename, long long num_vectors,
     long long got_vectors = 0LL;
     double sum_error = 0.0;
     while (got_vectors < num_vectors) {
-        long long current_batch_size = minll(num_vectors - got_vectors, LOAD_BATCH_SIZE);
+        long long current_batch_size = iminll(num_vectors - got_vectors, LOAD_BATCH_SIZE);
         long long red_rows = fread(batch, file_row_size, current_batch_size, f);
 
         for (long long row_index = 0; row_index < red_rows; ++row_index) {

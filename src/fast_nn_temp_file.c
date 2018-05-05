@@ -274,12 +274,6 @@ void temp_file_to_result_batches(FILE* temp_file, FILE* indices_file, FILE* dist
     vector_id_t* indices_batch = malloc(indices_row_size * batch_size);
     float* dists_batch = malloc(dists_row_size * batch_size);
 
-    int num_vectors_int = num_vectors;
-    fwrite(&num_vectors_int, 1, sizeof(num_vectors_int), indices_file);
-    fwrite(&num_nn, 1, sizeof(num_nn), indices_file);
-    fwrite(&num_vectors_int, 1, sizeof(num_vectors_int), dists_file);
-    fwrite(&num_nn, 1, sizeof(num_nn), dists_file);
-
     long long rows_processed = 0;
     while (rows_processed < num_vectors) {
         long long current_batch_size = iminll(batch_size, num_vectors - rows_processed);

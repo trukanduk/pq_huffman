@@ -6,6 +6,7 @@
 
 #include "bitstream.h"
 #include "huffman.h"
+#include "misc.h"
 
 enum {
     ACTION_DECODE = 0, // NOTE: Read input file and decode the data.
@@ -29,22 +30,6 @@ typedef struct _config {
     char* input_huffman_indices_filename;
     char* input_huffman_codebooks_filename;
 } config_t;
-
-// TODO: Move to common file!
-static char* concat(const char* left, const char* right) {
-    int left_length = strlen(left);
-    int right_length = strlen(right);
-    char* result = malloc(sizeof(*result) * (left_length + right_length + 1));
-    char* res_it = result;
-    for (const char* c = left; *c; ++c, ++res_it) {
-        *res_it = *c;
-    }
-    for (const char* c = right; *c; ++c, ++res_it) {
-        *res_it = *c;
-    }
-    *res_it = '\0';
-    return result;
-}
 
 static void print_help(const char* argv0) {
     fprintf(stderr, "Usage: %s <huffman output template> [--output-file <output file>]"

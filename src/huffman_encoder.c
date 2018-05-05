@@ -7,6 +7,8 @@
 #include "bitstream.h"
 #include "huffman.h"
 #include "stats.h"
+#include "misc.h"
+#include "vecs_io.h"
 
 enum {
     SORT_NOSORT = 0,
@@ -31,21 +33,6 @@ typedef struct _config {
 
     long long num_vectors;
 } config_t;
-
-static char* concat(const char* left, const char* right) {
-    int left_length = strlen(left);
-    int right_length = strlen(right);
-    char* result = malloc(sizeof(char) * (left_length + right_length + 1));
-    char* res_it = result;
-    for (const char* left_it = left; *left_it; ++left_it) {
-        *(res_it++) = *left_it;
-    }
-    for (const char* right_it = right; *right_it; ++right_it) {
-        *(res_it++) = *right_it;
-    }
-    *res_it = '\0';
-    return result;
-}
 
 static void print_help(const char* argv0) {
     fprintf(stderr, "Usage: %s <pq-output-template> <output-template> <m>"
@@ -238,11 +225,12 @@ static void run(const config_t* config) {
     huffman_stats_t encode_stats;
     huffman_stats_init(&encode_stats, config->num_vectors, config->m, config->k_star);
 
-    byte_t* data = malloc(sizeof(*data) * data_size);
-    // TODO: Don't load this shit to memory
-    FILE* indices_file = fopen(config->pq_input_indices, "rb");
-    fread(data, sizeof(byte_t), config->num_vectors * config->m, indices_file);
-    fclose(indices_file);
+    byte_t* data = load_vecs_light_filename(config->pq_input_indices, sizeof(byte_t), config->num_vectors * config->m);
+    // byte_t* data = malloc(sizeof(*data) * data_size);
+    // // TODO: Don't load this shit to memory
+    // FILE* indices_file = fopen(config->pq_input_indices, "rb");
+    // fread(data, sizeof(byte_t), config->num_vectors * config->m, indices_file);
+    // fclose(indices_file);
 
     if (config->sort == SORT_SHUFFLE) {
         shuffle(config, data);

@@ -83,6 +83,12 @@ then
     python3 compare_nn.py "$EXACT_OUT/" "$OUT_DIR/" >> $OUT_DIR/diff.json
     tail -1 $OUT_DIR/diff.json | python3 -c 'import json; print(json.loads(input())["missed_indices_per_vec_at_nn"])'
     tail -1 $OUT_DIR/diff.json | python3 -c 'import json; print(json.loads(input())["fast_perc_sum_dist_per_vector_at_nn"])'
+    echo "    Done compare. Starting huffman estimate..."
+    make nn_huffman_estimator || exit 1
+    for m in ${MM:-4 8 16 32}
+    do
+        ./nn_huffman_estimator "$PQ_HOME/out/pq/${dataset}_${m}/" "$OUT_DIR/" "$OUT_DIR/estimation_${m}_" $m
+    done
     echo "    Done in $(diff_iso $start)"
 
 elif [ "$action" = 'pq' ]

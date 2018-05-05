@@ -3,7 +3,8 @@
 
 #include <stdio.h>
 
-typedef unsigned char byte_t;
+#include "misc.h"
+
 enum {
     BYTE_NUM_BITS = sizeof(byte_t) * 8
 };

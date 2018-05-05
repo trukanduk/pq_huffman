@@ -1,7 +1,9 @@
 #include "misc.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 int imin(int a, int b) {
     return (a < b ? a : b);
@@ -33,5 +35,16 @@ char* concat(const char* prefix, const char* suffix) {
         *result_it = *suffix_it;
     }
     *result_it = '\0';
+    return result;
+}
+
+long long load_num_elements(const char* filename, long long element_size) {
+    FILE* f = fopen(filename, "rb");
+    fseek(f, 0, SEEK_END);
+    long long file_size = ftell(f);
+    fclose(f);
+
+    long long result = file_size / element_size;
+    assert(result * element_size == file_size);
     return result;
 }

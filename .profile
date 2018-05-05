@@ -3,6 +3,7 @@ then
     return
 fi
 
+export PQ_HOME=$HOME/pq
 if [ "$1" = 'z' ]
 then
     export YAEL_HOME=/home/trukanduk/pq/yael/yael_v438
