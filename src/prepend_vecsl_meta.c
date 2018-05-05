@@ -43,7 +43,6 @@ int main(int argc, const char* argv[]) {
     long long num_elements = 1LL * num_vectors * num_dimensions;
     fseek(f, 0, SEEK_END);
     long long file_size = ftell(f);
-    long long expected
     if (file_size == num_elements * element_size + 8) {
         printf("File %s already processed\n", filename);
         return 0;
