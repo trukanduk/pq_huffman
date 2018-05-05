@@ -19,4 +19,5 @@ int load_vecs_num_dimensions_filename(const char* filename);
 
 void save_vecs_light_meta_file(FILE* file, long long num_elements, int num_dimensions);
 
+
 #endif //_VECS_IO_H
