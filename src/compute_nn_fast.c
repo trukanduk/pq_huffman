@@ -185,7 +185,7 @@ void dimension_info_build(block_dimension_info_t* dimension_info, const char* in
     }
     dimension_info->block_starts = malloc(sizeof(*dimension_info->block_starts) * num_blocks * 2);
     dimension_info->block_ends = dimension_info->block_starts + num_blocks;
-    printf("dim %d in [%lf, %lf], num_blocks %lld, overlap %lf\n", dimension_to_use,
+    printf("dim %d in [%lf, %lf], num_blocks %d, overlap %lf\n", dimension_to_use,
            dimension[0], dimension[num_vectors - 1], num_blocks, block_overlap_fraction);
     long long num_overlapped = (long long)(num_vectors * block_overlap_fraction / 2);
     for (int i = 0; i < num_blocks; ++i) {
@@ -445,7 +445,7 @@ dataset_metainfo_t get_metainfo(const char* input_filename) {
 
     long long row_size = make_dataset_row_size(metainfo.num_dimensions);
     metainfo.num_vectors = filesize / row_size;
-    printf("num vectors %lld * row_size %lld (num_dim %lld) == filesize %lld\n", metainfo.num_vectors,
+    printf("num vectors %lld * row_size %lld (num_dim %d) == filesize %lld\n", metainfo.num_vectors,
            row_size, metainfo.num_dimensions, filesize);
     assert(metainfo.num_vectors * row_size == filesize);
     return metainfo;

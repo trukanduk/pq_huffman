@@ -33,7 +33,7 @@ typedef struct _config {
 
 static void print_help(const char* argv0) {
     fprintf(stderr, "Usage: %s <huffman output template> [--output-file <output file>]"
-            " [--check-file <pq indices file>]\n");
+            " [--check-file <pq indices file>]\n"), argv0;
     exit(1);
 }
 
