@@ -63,7 +63,7 @@ then
     NUM_THREADS=${NUM_THREADS:-1}
 
     NUM_DIM=${NUM_DIM:-3}
-    OVERLAP=${OVERLAP:-1e-2}
+    OVERLAP=${OVERLAP:-0.01}
     NUM_BLOCKS=${NUM_BLOCKS:-10}
 
     OUT_DIR="$PQ_HOME/out/nn/${dataset}_${NUM_NN}_d${NUM_DIM}_b${NUM_BLOCKS}_o${OVERLAP}"
@@ -87,7 +87,7 @@ then
     make nn_huffman_estimator || exit 1
     for m in ${MM:-4 8 16 32}
     do
-        ./nn_huffman_estimator "$PQ_HOME/out/pq/${dataset}_${m}/" "$OUT_DIR/" "$OUT_DIR/estimation_${m}_" $m
+        ./nn_huffman_estimator "$PQ_HOME/out/pq/${dataset}_${m}/" "$OUT_DIR/" "$OUT_DIR/estimation_${m}_" $m # > /dev/null
     done
     echo "    Done in $(diff_iso $start)"
 

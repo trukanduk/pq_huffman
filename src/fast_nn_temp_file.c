@@ -5,6 +5,7 @@
 #include <limits.h>
 #include <math.h>
 
+#include "vecs_io.h"
 // Max heap
 
 int fast_nn_heap_search_indices_collisions(temp_file_item_t* begin, temp_file_item_t* end,
@@ -273,6 +274,9 @@ void temp_file_to_result_batches(FILE* temp_file, FILE* indices_file, FILE* dist
     temp_file_item_t* tempfile_batch = malloc(tempfile_row_size * batch_size);
     vector_id_t* indices_batch = malloc(indices_row_size * batch_size);
     float* dists_batch = malloc(dists_row_size * batch_size);
+
+    save_vecs_light_meta_file(indices_file, num_vectors, num_nn);
+    save_vecs_light_meta_file(dists_file, num_vectors, num_nn);
 
     long long rows_processed = 0;
     while (rows_processed < num_vectors) {

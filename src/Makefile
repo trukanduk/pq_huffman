@@ -25,7 +25,7 @@ all: $(BINARIES)
 clean:
 	rm -f $(BINARIES) $(OBJECTS)
 
-DEPS_compute_nn_fast = compute_nn_fast.o concurrent_queue.o misc.o fast_nn_temp_file.o
+DEPS_compute_nn_fast = compute_nn_fast.o concurrent_queue.o misc.o fast_nn_temp_file.o vecs_io.o
 compute_nn_fast: $(DEPS_compute_nn_fast)
 	$(LINK.c)
 

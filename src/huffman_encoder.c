@@ -225,12 +225,7 @@ static void run(const config_t* config) {
     huffman_stats_t encode_stats;
     huffman_stats_init(&encode_stats, config->num_vectors, config->m, config->k_star);
 
-    byte_t* data = load_vecs_light_filename(config->pq_input_indices, sizeof(byte_t), config->num_vectors * config->m);
-    // byte_t* data = malloc(sizeof(*data) * data_size);
-    // // TODO: Don't load this shit to memory
-    // FILE* indices_file = fopen(config->pq_input_indices, "rb");
-    // fread(data, sizeof(byte_t), config->num_vectors * config->m, indices_file);
-    // fclose(indices_file);
+    byte_t* data = load_vecs_light_filename(config->pq_input_indices, sizeof(byte_t), NULL, NULL);
 
     if (config->sort == SORT_SHUFFLE) {
         shuffle(config, data);

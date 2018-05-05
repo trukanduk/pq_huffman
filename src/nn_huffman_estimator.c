@@ -49,9 +49,7 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
     config->nn_input_indices = concat(config->nn_input_template, "nn_indices.ivecsl");
     config->output_stats = concat(config->output_template, "huffman_stats.txt");
 
-    config->num_vectors = load_num_elements(config->pq_input_indices, config->m);
-    config->num_nn = load_num_elements(config->nn_input_indices,
-                                       config->num_vectors * sizeof(vector_id_t));
+    load_vecs_light_meta_filename(config->nn_input_indices, &config->num_vectors, &config->m);
 }
 
 static void config_free(config_t* config) {
@@ -105,12 +103,10 @@ static void run(const config_t* config) {
     long long data_size = config->m * config->num_vectors;
 
     byte_t* pq_indices = load_vecs_light_filename(config->pq_input_indices, sizeof(byte_t),
-                                                  config->num_vectors * config->m);
-    vector_id_t* nn_indices = load_vecs_light_filename(config->nn_input_indices,
-                                                       sizeof(vector_id_t),
-                                                       config->num_vectors * config->num_nn);
-
-    printf("assfgdsfgsd\n");
+                                                  NULL, NULL);
+    vector_id_t* nn_indices = (vector_id_t*) load_vecs_light_filename(config->nn_input_indices,
+                                                                      sizeof(vector_id_t), NULL,
+                                                                      NULL);
 
     FILE* stats_file = fopen(config->output_stats, "a");
     fprintf(stats_file, "[");

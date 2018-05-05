@@ -207,6 +207,7 @@ static void copy_cluster_indices(unsigned char* result, int offset, const int* c
 static void save_indices(const char* output_filename, const unsigned char* result,
                          long long num_vectors, int m) {
     FILE* f = fopen(output_filename, "wb");
+    save_vecs_light_meta_file(f, num_vectors, m);
     fwrite(result, m * sizeof(*result), num_vectors, f);
     fclose(f);
 }
@@ -246,6 +247,8 @@ static void centroids_codebook_destroy(centroids_codebook_t* codebook) {
 
 static void centroids_codebook_save(const centroids_codebook_t* codebook, const char* filename) {
     FILE* f = fopen(filename, "wb");
+    save_vecs_light_meta_file(f, codebook->num_parts * codebook->num_clusters,
+                              codebook->num_dimensions);
     fwrite(codebook->centroids_pool, sizeof(*codebook->centroids_pool) * codebook->num_dimensions,
            codebook->num_parts * codebook->num_clusters, f);
     fclose(f);
