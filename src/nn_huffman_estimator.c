@@ -42,14 +42,13 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
     config->output_template = argv[3];
     config->m = atoi(argv[4]);
 
-
     config->k_star = (1 << 8); // TODO:
 
     config->pq_input_indices = concat(config->pq_input_template, "pq_indices.bvecsl");
     config->nn_input_indices = concat(config->nn_input_template, "nn_indices.ivecsl");
     config->output_stats = concat(config->output_template, "huffman_stats.txt");
 
-    load_vecs_light_meta_filename(config->nn_input_indices, &config->num_vectors, &config->m);
+    load_vecs_light_meta_filename(config->nn_input_indices, &config->num_vectors, &config->num_nn);
 }
 
 static void config_free(config_t* config) {
@@ -67,8 +66,9 @@ static void config_free(config_t* config) {
     }
 }
 
-static void collect_stats_at_kth_nn(const config_t* config, const byte_t* pq_indices,
-                                    const vector_id_t* nn_indices, double* stats, int nn_index) {
+static long long collect_stats_at_kth_nn(const config_t* config, const byte_t* pq_indices,
+                                         const vector_id_t* nn_indices, double* stats,
+                                         int nn_index) {
     long long num_stats_per_codebook = config->k_star * config->k_star;
     long long num_stats_per_nn = config->m * num_stats_per_codebook;
     for (int i = 0; i < num_stats_per_nn; ++i) {
@@ -77,10 +77,15 @@ static void collect_stats_at_kth_nn(const config_t* config, const byte_t* pq_ind
 
     const vector_id_t* nn_it;
     const byte_t* source_vector_it;
+    long long num_known = 0;
     for (nn_it = nn_indices, source_vector_it = pq_indices;
          source_vector_it != pq_indices + config->m * config->num_vectors;
          nn_it += config->num_nn, source_vector_it += config->m)
     {
+        if (nn_it[nn_index] == -1) {
+            continue;
+        }
+        ++num_known;
         const byte_t* target_vector = pq_indices + config->m * nn_it[nn_index];
         for (int i = 0; i < config->m; ++i) {
             double* codebook_stats = stats + num_stats_per_codebook * i;
@@ -95,18 +100,30 @@ static void collect_stats_at_kth_nn(const config_t* config, const byte_t* pq_ind
         {
             stats_sum += *stat_it;
         }
-        assert((long long) stats_sum == config->num_vectors);
+        assert((long long) stats_sum == num_known);
     }
+
+    return num_known;
 }
 
 static void run(const config_t* config) {
     long long data_size = config->m * config->num_vectors;
 
+    long long num_vectors_pq;
+    int pq_m;
     byte_t* pq_indices = load_vecs_light_filename(config->pq_input_indices, sizeof(byte_t),
-                                                  NULL, NULL);
+                                                  &num_vectors_pq, &pq_m);
+    assert(num_vectors_pq == config->num_vectors);
+    assert(pq_m == config->m);
+
+    long long num_vectors_nn;
+    int num_nn;
     vector_id_t* nn_indices = (vector_id_t*) load_vecs_light_filename(config->nn_input_indices,
-                                                                      sizeof(vector_id_t), NULL,
-                                                                      NULL);
+                                                                      sizeof(vector_id_t),
+                                                                      &num_vectors_nn,
+                                                                      &num_nn);
+    assert(num_vectors_nn == config->num_vectors);
+    assert(num_nn == config->num_nn);
 
     FILE* stats_file = fopen(config->output_stats, "a");
     fprintf(stats_file, "[");
@@ -114,7 +131,8 @@ static void run(const config_t* config) {
     double* stats = malloc(sizeof(*stats) * config->m * config->k_star * config->k_star);
     huffman_codebook_t* codebooks = malloc(sizeof(*codebooks) * config->m);
     for (int nn_index = 0; nn_index < config->num_nn; ++nn_index) {
-        collect_stats_at_kth_nn(config, pq_indices, nn_indices, stats, nn_index);
+        long long num_known_vectors = collect_stats_at_kth_nn(config, pq_indices, nn_indices,
+                                                              stats, nn_index);
         huffman_stats_t encode_stats;
         huffman_stats_init(&encode_stats, config->num_vectors, config->m, config->k_star);
         for (int part_index = 0; part_index < config->m; ++part_index) {
@@ -122,6 +140,7 @@ static void run(const config_t* config) {
             huffman_codebook_t* codebook = codebooks + part_index;
             huffman_codebook_context_encode_init(codebook, config->k_star, stats_part);
             double estimation = huffman_estimate_size(codebook, stats_part);
+            estimation += 8 * (config->num_vectors - num_known_vectors);
             huffman_stats_push(&encode_stats, part_index, estimation);
         }
         huffman_stats_print(&encode_stats);
