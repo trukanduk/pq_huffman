@@ -424,8 +424,8 @@ int tree_collect_indices_stats(long long num_vectors, int pq_m, const byte_t* pq
         vector_id_t current_vector_id = vertices_it ? *vertices_it : vec_index;
         vector_id_t prev_vector_id = tree_traverser_get_active_parent(&traverser);
         if (prev_vector_id != TRAVERSER_NO_PARENT_VECTOR) {
-            const byte_t* prev_vector = pq_indices + prev_vector_id * pq_m;
-            const byte_t* current_vector = pq_indices + current_vector_id * pq_m;
+            const byte_t* prev_vector = pq_indices + 1LL * prev_vector_id * pq_m;
+            const byte_t* current_vector = pq_indices + 1LL * current_vector_id * pq_m;
             for (int part_index = 0; part_index < pq_m; ++part_index) {
                 double* stats_part = stats + part_index * K_STAR * K_STAR;
                 stats_part[prev_vector[part_index] * K_STAR + current_vector[part_index]] += 1.0;

@@ -181,6 +181,15 @@ int huffman_decoder_push_bits(huffman_decoder_t* decoder, const byte_t* bits, in
     return (bit_index == bit_length) ? push_result : HUFFMAN_INVALID_SYMBOL;
 }
 
+int huffman_decoder_read_symbol(huffman_decoder_t* decoder, bit_stream_t* stream) {
+    int symbol = HUFFMAN_NO_SYMBOL;
+    while (symbol == HUFFMAN_NO_SYMBOL) {
+        int bit_value = bit_stream_read_bit(stream);
+        symbol = huffman_decoder_push_bit(decoder, bit_value);
+    }
+    return symbol;
+}
+
 #ifdef _HUFFMAN_DECODE_TEST
 
 #define NUM_SYMBOLS 6

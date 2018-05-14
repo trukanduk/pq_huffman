@@ -37,7 +37,7 @@ DEPS_huffman_encoder = huffman_encoder.o huffman_encode.o huffman_decode.o huffm
 huffman_encoder: $(DEPS_huffman_encoder)
 	$(LINK.bin)
 
-DEPS_huffman_decoder = huffman_decoder.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o stats.o misc.o vecs_io.o
+DEPS_huffman_decoder = huffman_decoder.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o mst.o dsu.o stats.o misc.o vecs_io.o
 huffman_decoder: $(DEPS_huffman_decoder)
 	$(LINK.bin)
 

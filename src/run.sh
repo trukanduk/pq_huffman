@@ -146,7 +146,9 @@ then
         SORT_FLAG2="$PQ_HOME/out/mst/${dataset}_$TREE/mst.tree"
     fi
     start=$(now_ts)
-    ./huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $SORT_FLAG2 $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+    # gdb --args
+    ./huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $SORT_FLAG2 $(ifif "$CONTEXT" '' '--no-context')
+    # >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time"
@@ -167,9 +169,9 @@ then
         exit 1
     fi
 
-    if [ "$INPUT" != 'sort' -a "$INPUT" != 'nosort' -a "$INPUT" != 'shuffle' ]
+    if [ "$INPUT" != 'sort' -a "$INPUT" != 'nosort' -a "$INPUT" != 'shuffle' -a "$INPUT" != 'tree' ]
     then
-        echo "Invalid INPUT argument: $INPUT. Expected one of 'sort', 'nosort', 'shuffle'" >&2
+        echo "Invalid INPUT argument: $INPUT. Expected one of 'sort', 'nosort', 'shuffle', 'tree'" >&2
         exit 1
     fi
 
@@ -201,9 +203,15 @@ then
         ACTION_FLAG='--output-file'
         ACTION_FLAG2="$OUT_DIR/pq_indices_decoded.bvecsl"
     fi
+    if [ "$INPUT" = 'tree' ]
+    then
+        TREE_FLAG='--tree'
+    else
+        TREE_FLAG=
+    fi
 
     start=$(now_ts)
-    ./huffman_decoder "$ENCODED_DIR/" $ACTION_FLAG $ACTION_FLAG2 >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+    gdb --args ./huffman_decoder "$ENCODED_DIR/" $ACTION_FLAG $ACTION_FLAG2 $TREE_FLAG # | tee >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${ACTION}"

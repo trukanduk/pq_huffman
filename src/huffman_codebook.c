@@ -32,6 +32,14 @@ void huffman_codebook_dump(const huffman_codebook_t* codebook, FILE* f) {
     }
 }
 
+void huffman_counts_context_dump(const double* symbol_counts, int alphabet_size, FILE* f) {
+    for (int from = 0; from < alphabet_size; ++from) {
+        for (int to = 0; to < alphabet_size; ++to) {
+            fprintf(f, "%d -> %d: %lf\n", from, to, symbol_counts[from * alphabet_size + to]);
+        }
+    }
+}
+
 static void huffman_codebook_write_bit_length(FILE* file, unsigned int bit_length) {
     unsigned int bit_length_rest = bit_length;
     int continous_flag = 1;

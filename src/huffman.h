@@ -26,6 +26,7 @@ typedef struct _huffman_codebook {
 // NOTE: Debug functions:
 void huffman_dump_code(const huffman_code_item_t* item, FILE* f);
 void huffman_codebook_dump(const huffman_codebook_t* codebook, FILE* f);
+void huffman_counts_context_dump(const double* symbol_counts, int alphabet_size, FILE* f);
 
 void huffman_codebook_save(const huffman_codebook_t* codebook, FILE* file);
 void huffman_codebook_load(huffman_codebook_t* codebook, FILE* file);
@@ -43,5 +44,6 @@ void huffman_decoder_reset(huffman_decoder_t* decoder);
 void huffman_decoder_set_prev_symbol(huffman_decoder_t* decoder, int prev_symbol);
 int huffman_decoder_push_bit(huffman_decoder_t* decoder, int bit_value);
 int huffman_decoder_push_bits(huffman_decoder_t* decoder, const byte_t* bits, int bit_length);
+int huffman_decoder_read_symbol(huffman_decoder_t* decoder, bit_stream_t* stream);
 
 #endif // _HUFFMAN_H

@@ -98,7 +98,7 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
     config->output_stats = concat(config->output_template, "huffman_stats.txt");
     config->output_children_stats = concat(config->output_template, "huffman_children_stats.txt");
 
-    config->num_vectors = load_num_vectors(config->pq_input_indices, config->m);
+    config->num_vectors = load_vecs_num_vectors_filename(config->pq_input_indices);
 }
 
 static void config_free(config_t* config) {
@@ -245,13 +245,14 @@ static void encode_tree_data(const config_t* config, const byte_t* data,
 
     const int* num_children_it = num_children;
     const vector_id_t* vertices_it = vertices;
+    long long total_written = 0;
     for (long long vec_index = 0; vec_index < config->num_vectors; ++vec_index) {
         vector_id_t current_vector_id = vertices_it ? *vertices_it : vec_index;
-        const byte_t* current_vector = data + current_vector_id * config->m;
+        const byte_t* current_vector = data + 1LL * current_vector_id * config->m;
 
         vector_id_t prev_vector_id = tree_traverser_get_active_parent(&traverser);
         const byte_t* prev_vector = prev_vector_id != TRAVERSER_NO_PARENT_VECTOR
-                ? data + prev_vector_id
+                ? data + 1LL * prev_vector_id * config->m
                 : NULL;
         for (int part_index = 0; part_index < config->m; ++part_index) {
             const huffman_codebook_t* codebook = codebooks + part_index;
@@ -260,8 +261,11 @@ static void encode_tree_data(const config_t* config, const byte_t* data,
                         + current_vector[part_index];
                 const huffman_code_item_t* item = &codebook->items[item_index];
                 bit_stream_write(stream, item->code, item->bit_length);
+                assert(item->bit_length > 0);
+                total_written += item->bit_length;
             } else {
                 bit_stream_write(stream, current_vector + part_index, BYTE_NUM_BITS);
+                total_written += BYTE_NUM_BITS;
             }
         }
 
@@ -275,7 +279,9 @@ static void encode_tree_data(const config_t* config, const byte_t* data,
             ++vertices_it;
         }
     }
+    assert(traverser.stack_size == 0);
 
+    // printf("WRITTEN %lld\n", total_written);
     tree_traverser_destroy(&traverser);
 }
 
@@ -327,6 +333,9 @@ static void run(const config_t* config) {
     if (config->context) {
         stats = collect_context_stats(config, data, vertices, num_children, &num_roots);
         alphabet_size *= config->k_star;
+        encode_stats.num_roots = num_roots;
+
+        // huffman_counts_context_dump(stats, config->k_star, stdout);
     } else {
         stats = collect_non_context_stats(config, data);
     }
@@ -338,11 +347,11 @@ static void run(const config_t* config) {
         huffman_codebook_t codebook;
         huffman_codebook_encode_init(&codebook, children_alphabet_size, symbol_counts);
 
-        FILE* codebook_file = fopen(config->output_children_codebook, "w");
+        FILE* codebook_file = fopen(config->output_children_codebook, "wb");
         huffman_codebook_save(&codebook, codebook_file);
         fclose(codebook_file);
 
-        FILE* children_file = fopen(config->output_encoded_children, "w");
+        FILE* children_file = fopen(config->output_encoded_children, "wb");
         bit_stream_t* bitstream = bit_stream_create_from_file(children_file);
         for (const int* children_it = num_children;
              children_it != num_children + config->num_vectors;
@@ -393,6 +402,8 @@ static void run(const config_t* config) {
         huffman_codebook_save(codebooks + i, codebooks_file);
     }
     fclose(codebooks_file);
+
+    // huffman_codebook_dump(codebooks, stdout);
 
     FILE* encoded_indices_file = fopen(config->output_encoded_indices, "wb");
     unsigned long long num_vectors_ll = config->num_vectors;
