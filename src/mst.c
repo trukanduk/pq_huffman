@@ -89,7 +89,7 @@ mst_edge_t* load_mst_edges_from_nn_files(long long num_vectors, int num_nn_to_lo
         fprintf(stderr, "Does indices and dist files are of the same dataset?\n");
         fprintf(stderr, "\tN_expected=%lld, N_indices=%lld, N_dist=%lld,"
                 "NNN_indices=%d, NNN_dist=%d\n", num_vectors, num_vectors_ind, num_vectors_dist,
-                num_nn, num_nn, num_nn_dist);
+                num_nn, num_nn_dist);
         assert(num_vectors != num_vectors_ind);
         assert(num_vectors != num_vectors_dist);
         assert(num_nn != num_nn_dist);

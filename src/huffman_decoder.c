@@ -8,6 +8,7 @@
 #include "huffman.h"
 #include "misc.h"
 #include "mst.h"
+#include "vecs_io.h"
 
 enum {
     ACTION_DECODE = 0, // NOTE: Read input file and decode the data.
@@ -37,7 +38,7 @@ typedef struct _config {
 
 static void print_help(const char* argv0) {
     fprintf(stderr, "Usage: %s <huffman output template> [--output-file <output file>]"
-            " [--check-file <pq indices file>] [--tree]\n"), argv0;
+            " [--check-file <pq indices file>] [--tree]\n", argv0);
     exit(1);
 }
 
