@@ -232,7 +232,7 @@ then
 
     NN_DIR="$PQ_HOME/out/nn/${dataset}_${NUM_NN}"
     PQ_DIR="$PQ_HOME/out/pq/${dataset}_${M}"
-    OUT_DIR="$PQ_HOME/out/mst/${dataset}_${NUM_NN_TAKE}"
+    OUT_DIR="$PQ_HOME/out/mst/${dataset}_nn${NUM_NN_TAKE}_m${M}"
     mkdir -p $OUT_DIR
 
     echo "Starting mst $dataset with NUM_NN=$NUM_NN, NUM_NN_TAKE=$NUM_NN_TAKE, M=$M, NUM_THREADS=$NUM_THREADS at $(now_iso)"
