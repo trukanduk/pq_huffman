@@ -16,7 +16,7 @@ POSTCOMPILE = @mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d && touch $@
 
 SOURCES := $(shell find . -name '*.c')
 OBJECTS := $(SOURCES:%.c=%.o)
-BINARIES := compute_nn_fast pq_encoder huffman_encoder huffman_decoder nn_huffman_estimator prepend_vecsl_meta
+BINARIES := compute_nn_fast pq_encoder huffman_encoder huffman_decoder nn_huffman_estimator prepend_vecsl_meta mst_builder
 
 .PHONY: all clean
 
@@ -47,6 +47,10 @@ nn_huffman_estimator: $(DEPS_nn_huffman_estimator)
 
 DEPS_prepend_vecsl_meta = prepend_vecsl_meta.o vecs_io.o
 prepend_vecsl_meta: $(DEPS_prepend_vecsl_meta)
+	$(LINK.bin)
+
+DEPS_mst_builder = mst_builder.o stats.o mst.o dsu.o huffman_encode.o huffman_codebook.o bitstream.o vecs_io.o misc.o
+mst_builder: $(DEPS_mst_builder)
 	$(LINK.bin)
 
 %.o : %.c

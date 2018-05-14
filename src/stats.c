@@ -15,6 +15,7 @@ void huffman_stats_init(huffman_stats_t* stats, long long num_vectors, int m, in
     {
         *length_it = 0.0;
     }
+    stats->num_roots = 0;
 }
 
 void huffman_stats_destroy(huffman_stats_t* stats) {
@@ -26,6 +27,7 @@ void huffman_stats_destroy(huffman_stats_t* stats) {
         free(stats->partial_lengths);
         stats->partial_lengths = NULL;
     }
+    stats->num_roots = 0;
 }
 
 void huffman_stats_push(huffman_stats_t* stats, int part, double value) {
@@ -54,14 +56,20 @@ static void huffman_stats_print_stats_impl(FILE* file, double bit_length, int m,
 void huffman_stats_print_file(const huffman_stats_t* stats, FILE* file) {
     fprintf(file, "{\"num_vectors\": %lld, \"m\": %d, \"k_star\": %d, ",
             stats->num_vectors, stats->m, stats->k_star);
-    huffman_stats_print_stats_impl(file, stats->sum_length, stats->m, stats);
+    double additional_bits_length = 8 * stats->num_roots;
+    huffman_stats_print_stats_impl(file, stats->sum_length + additional_bits_length * stats->m,
+                                   stats->m, stats);
+    if (stats->num_roots) {
+        fprintf(file, ", \"num_roots\": %d", stats->num_roots);
+    }
     fprintf(file, ", \"partials\": [");
     for (int i = 0; i < stats->m; ++i) {
         if (i > 0) {
             fprintf(file, ", ");
         }
         fprintf(file, "{");
-        huffman_stats_print_stats_impl(file, stats->partial_lengths[i], 1, stats);
+        huffman_stats_print_stats_impl(file, stats->partial_lengths[i] + additional_bits_length,
+                                       1, stats);
         fprintf(file, "}");
     }
     fprintf(file, "]}\n");

@@ -8,10 +8,10 @@
 #include "vecs_io.h"
 // Max heap
 
-int fast_nn_heap_search_indices_collisions(temp_file_item_t* begin, temp_file_item_t* end,
-                              const temp_file_item_t* item)
+int fast_nn_heap_search_indices_collisions(nn_item_t* begin, nn_item_t* end,
+                                           const nn_item_t* item)
 {
-    for (temp_file_item_t* i = begin; i != end; ++i) {
+    for (nn_item_t* i = begin; i != end; ++i) {
         if (i->index == item->index) {
             return 1;
         }
@@ -20,7 +20,7 @@ int fast_nn_heap_search_indices_collisions(temp_file_item_t* begin, temp_file_it
     return 0;
 }
 
-static void fast_nn_heap_push_impl(temp_file_item_t* heap, const temp_file_item_t* item, int num_nn) {
+static void fast_nn_heap_push_impl(nn_item_t* heap, const nn_item_t* item, int num_nn) {
     int item_index = 0;
     while (1) {
         int left_child_index = 2 * (item_index + 1) - 1;
@@ -45,7 +45,7 @@ static void fast_nn_heap_push_impl(temp_file_item_t* heap, const temp_file_item_
     heap[item_index] = *item;
 }
 
-void fast_nn_heap_push(temp_file_item_t* heap, const temp_file_item_t* item, int num_nn) {
+void fast_nn_heap_push(nn_item_t* heap, const nn_item_t* item, int num_nn) {
     if (item->dist >= heap[0].dist || fast_nn_heap_search_indices_collisions(heap, heap + num_nn, item)) {
         return; // Drop this new item
     }
@@ -53,7 +53,7 @@ void fast_nn_heap_push(temp_file_item_t* heap, const temp_file_item_t* item, int
     fast_nn_heap_push_impl(heap, item, num_nn);
 }
 
-void fast_nn_heap_sort(temp_file_item_t* heap, int num_nn, vector_id_t* indices, float* dists) {
+void fast_nn_heap_sort(nn_item_t* heap, int num_nn, vector_id_t* indices, float* dists) {
     while (--num_nn >= 0) {
         indices[num_nn] = heap[0].index;
         dists[num_nn] = heap[0].dist;
@@ -87,10 +87,10 @@ void init_temp_file(const char* temp_file_name, long long num_vectors, int num_n
 }
 
 int make_temp_file_row_size(int num_nn) {
-    return num_nn * sizeof(temp_file_item_t);
+    return num_nn * sizeof(nn_item_t);
 }
 
-void init_empty_batch_for_temp_file(temp_file_item_t* batch, int num_nn, long long rows_in_batch) {
+void init_empty_batch_for_temp_file(nn_item_t* batch, int num_nn, long long rows_in_batch) {
     int row_size = make_temp_file_row_size(num_nn);
 
     // NOTE: init first row directly
@@ -115,7 +115,7 @@ void init_temp_file_batches(FILE* temp_file, long long num_vectors, int num_nn,
     }
 
     long long row_size = make_temp_file_row_size(num_nn);
-    temp_file_item_t* batch = malloc(row_size * rows_in_batch);
+    nn_item_t* batch = malloc(row_size * rows_in_batch);
     init_empty_batch_for_temp_file(batch, num_nn, rows_in_batch);
 
     long long num_rows_written = 0;
@@ -130,7 +130,7 @@ void init_temp_file_batches(FILE* temp_file, long long num_vectors, int num_nn,
 
 void partial_load_temp_file(const char* temp_file_name, int num_nn, long long num_vectors_to_load,
                             const long long* vectors_indices_to_load,
-                            temp_file_item_t* output_vectors)
+                            nn_item_t* output_vectors)
 {
     FILE* f = fopen(temp_file_name, "rb");
 
@@ -150,7 +150,7 @@ void partial_load_temp_file(const char* temp_file_name, int num_nn, long long nu
 
 void partial_save_temp_file(const char* temp_file_name, int num_nn, long long num_vectors_to_save,
                             const long long* vectors_indices_to_save,
-                            temp_file_item_t* vectors_to_save)
+                            nn_item_t* vectors_to_save)
 {
     FILE* f = fopen(temp_file_name, "r+b");
 
@@ -271,7 +271,7 @@ void temp_file_to_result_batches(FILE* temp_file, FILE* indices_file, FILE* dist
     long long indices_row_size = sizeof(vector_id_t) * num_nn;
     long long dists_row_size = sizeof(float) * num_nn;
 
-    temp_file_item_t* tempfile_batch = malloc(tempfile_row_size * batch_size);
+    nn_item_t* tempfile_batch = malloc(tempfile_row_size * batch_size);
     vector_id_t* indices_batch = malloc(indices_row_size * batch_size);
     float* dists_batch = malloc(dists_row_size * batch_size);
 

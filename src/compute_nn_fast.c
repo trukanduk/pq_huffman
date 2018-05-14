@@ -695,9 +695,9 @@ void run(config_t* config, blocks_info_t* blocks_info) {
 
         // printf("Starting merge for block %lld\n", block_id);
         long long temp_file_row_size = make_temp_file_row_size(config->num_nn);
-        temp_file_item_t temp_item;
+        nn_item_t temp_item;
         for (long long vec_index = 0; vec_index < block_size; ++vec_index) {
-            temp_file_item_t* heap = temp_file_loaders[active_buffer].vectors
+            nn_item_t* heap = temp_file_loaders[active_buffer].vectors
                     + config->num_nn * vec_index;
             int* vec_indices = result_indices + (num_nn_real + 1) * vec_index;
             float* vec_dists = result_dists + (num_nn_real + 1) * vec_index;

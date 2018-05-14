@@ -10,6 +10,7 @@ typedef struct _huffman_stats {
 
     double sum_length;
     double* partial_lengths;
+    int num_roots;
 } huffman_stats_t;
 
 void huffman_stats_init(huffman_stats_t* stats, long long num_vectors, int m, int k_star);

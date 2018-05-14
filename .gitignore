@@ -12,4 +12,5 @@ src/huffman_encoder
 src/huffman_decoder
 src/nn_huffman_estimator
 src/prepend_vecsl_meta
+src/mst_builder
 

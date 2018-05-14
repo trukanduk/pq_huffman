@@ -201,6 +201,31 @@ then
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${ACTION}"
     echo "    Done in $(diff_iso $start)"
+
+elif [ "$action" = 'mst' ]
+then
+    make mst_builder || exit 1
+
+    NUM_NN=${NUM_NN:-50}
+    NUM_NN_TAKE=${NUM_NN_TAKE:-5}
+    M=${M:-8}
+    NUM_THREADS=${NUM_THREADS:-1}
+
+    NN_DIR="$PQ_HOME/out/nn/${dataset}_${NUM_NN}"
+    PQ_DIR="$PQ_HOME/out/pq/${dataset}_${M}"
+    OUT_DIR="$PQ_HOME/out/mst/${dataset}_${NUM_NN_TAKE}"
+    mkdir -p $OUT_DIR
+
+    echo "Starting mst $dataset with NUM_NN=$NUM_NN, NUM_NN_TAKE=$NUM_NN_TAKE, M=$M, NUM_THREADS=$NUM_THREADS at $(now_iso)"
+
+    start=$(now_ts)
+    # gdb --args
+    ./mst_builder "$NN_DIR/" "$OUT_DIR/" "${NUM_NN_TAKE}" --pq-template "$PQ_DIR/" || exit 1
+    t=$(diff_ts $start)
+    echo $t > "$OUT_DIR/time_${NUM_THREADS}"
+
+    echo "    Done in $(diff_iso $start)"
+
 else
     echo "Unknown action: '$action'" >&2
     print_help

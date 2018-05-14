@@ -21,13 +21,13 @@ void dsu_destroy(dsu_t* dsu) {
 
 vector_id_t dsu_find_set(dsu_t* dsu, vector_id_t element) {
     // OPTIMIZE: Make non-recursive?
-    dsu_item_t* item = dsu->items[element];
-    if (element == item->parent) {
+    dsu_item_t* item = dsu->items + element;
+    if (element == item->parent_id) {
         return element;
     }
 
-    vector_id_t root = dsu_find_set(dsu, item->parent);
-    item->parent = root;
+    vector_id_t root = dsu_find_set(dsu, item->parent_id);
+    item->parent_id = root;
     return root;
 }
 
@@ -42,8 +42,8 @@ void dsu_union(dsu_t* dsu, vector_id_t first, vector_id_t second) {
         return;
     }
 
-    dsu_item_t* first_root_item = dsu->items[first_root];
-    dsu_item_t* second_root_item = dsu->items[second_root];
+    dsu_item_t* first_root_item = dsu->items + first_root;
+    dsu_item_t* second_root_item = dsu->items + second_root;
     if (first_root_item->rank < first_root_item->rank) {
         dsu_item_t* tmp = first_root_item;
         first_root_item = second_root_item;
@@ -54,7 +54,7 @@ void dsu_union(dsu_t* dsu, vector_id_t first, vector_id_t second) {
         second_root = tmpv;
     }
 
-    second_root_item->parent = first_root;
+    second_root_item->parent_id = first_root;
     if (first_root_item->rank == second_root_item->rank) {
         ++first_root_item->rank;
     }
