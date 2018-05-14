@@ -471,14 +471,14 @@ void tree_estimate_huffman_encoding(huffman_stats_t* indices_stats, huffman_stat
                                                     num_children, indices_symbol_stats);
 
     huffman_codebook_t codebook;
-    huffman_codebook_context_encode_init(&codebook, K_STAR, indices_symbol_stats);
     huffman_stats_init(indices_stats, tree->num_vertices, pq_m, K_STAR);
     indices_stats->num_roots = num_components;
     for (int part_index = 0; part_index < pq_m; ++part_index) {
+        huffman_codebook_context_encode_init(&codebook, K_STAR, indices_symbol_stats + part_index * K_STAR * K_STAR);
         double estimated = huffman_estimate_size(&codebook, indices_symbol_stats + part_index * K_STAR * K_STAR);
         huffman_stats_push(indices_stats, part_index, estimated);
+        huffman_codebook_destroy(&codebook);
     }
-    huffman_codebook_destroy(&codebook);
     int num_children_alphabet_size = 0;
     double* num_children_symbol_stats =
             tree_collect_num_children_stats(tree->num_vertices, num_children,
