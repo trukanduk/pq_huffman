@@ -51,8 +51,12 @@ then
     start=$(now_ts)
     python3 compute_nn.py "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" ${NUM_NN:-50} --num-threads ${NUM_THREADS:-1} --light-indices --light-dist || exit 1
     t=$(diff_ts $start)
-    echo $t > "$OUT_DIR/time_${NUM_THREADS}"
-
+    echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
+    make nn_huffman_estimator || exit 1
+    for m in ${MM:-4 8 16 32}
+    do
+        ./nn_huffman_estimator "$PQ_HOME/out/pq/${dataset}_${m}/" "$OUT_DIR/" "$OUT_DIR/estimation_${m}_" $m # > /dev/null
+    done
     echo "    Done in $(diff_iso $start)"
 
 elif [ "$action" = 'nn-fast' ]
