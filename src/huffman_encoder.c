@@ -355,7 +355,9 @@ static void run(const config_t* config) {
         fclose(children_file);
 
         huffman_stats_t stats;
-        huffman_stats_init(&stats, config->num_vectors, config->m, config->k_star);
+        huffman_stats_init(&stats, config->num_vectors, 1, config->k_star);
+        double estimation = huffman_estimate_size(&codebook, symbol_counts);
+        huffman_stats_push(&stats, 0, estimation);
         huffman_stats_print_filename(&stats, config->output_children_stats);
         huffman_stats_destroy(&stats);
 
