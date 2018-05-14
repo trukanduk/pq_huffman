@@ -33,7 +33,7 @@ DEPS_pq_encoder = pq_encoder.o misc.o vecs_io.o
 pq_encoder: $(DEPS_pq_encoder)
 	$(LINK.bin)
 
-DEPS_huffman_encoder = huffman_encoder.o huffman_encode.o huffman_decode.o huffman_codebook.o bitstream.o stats.o misc.o vecs_io.o
+DEPS_huffman_encoder = huffman_encoder.o huffman_encode.o huffman_decode.o huffman_codebook.o mst.o dsu.o bitstream.o stats.o misc.o vecs_io.o
 huffman_encoder: $(DEPS_huffman_encoder)
 	$(LINK.bin)
 

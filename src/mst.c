@@ -322,7 +322,6 @@ int tree_collect_vertices_dfs(const tree_t* tree, vector_id_t* vertices, int* nu
         }
     }
 
-    // printf("num_edges=%lld, %lld, tree_num_edges=%lld\n", num_edges_sum, tree->num_vertices - num_roots, tree->num_edges);
     assert(num_edges_sum == tree->num_vertices - num_roots);
 
     free(visited);

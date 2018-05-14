@@ -117,10 +117,11 @@ then
     M=${M:-8}
     SORT=${SORT:-sort}
     CONTEXT=${CONTEXT:-1}
+    TREE=${TREE:-}
 
-    if [ "$SORT" != 'sort' -a "$SORT" != 'nosort' -a "$SORT" != 'shuffle' ]
+    if [ "$SORT" != 'sort' -a "$SORT" != 'nosort' -a "$SORT" != 'shuffle' -a "$SORT" != 'tree' ]
     then
-        echo "Invalid SORT argument: $SORT. Expected one of 'sort', 'nosort', 'shuffle'" >&2
+        echo "Invalid SORT argument: $SORT. Expected one of 'sort', 'nosort', 'shuffle', 'tree'" >&2
         exit 1
     fi
 
@@ -134,12 +135,18 @@ then
     if [ "$SORT" = 'shuffle' ]
     then
         SORT_FLAG='--shuffle'
+        SORT_FLAG2=
     elif [ "$SORT" = 'nosort' ]
     then
         SORT_FLAG='--no-sort'
+        SORT_FLAG2=
+    elif [ "$SORT" = 'tree' ]
+    then
+        SORT_FLAG='--tree'
+        SORT_FLAG2="$PQ_HOME/out/mst/${dataset}_$TREE/mst.tree"
     fi
     start=$(now_ts)
-    ./huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+    ./huffman_encoder "$PQ_DIR/" "$OUT_DIR/" $M $SORT_FLAG $SORT_FLAG2 $(ifif "$CONTEXT" '' '--no-context') >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time"
@@ -219,7 +226,6 @@ then
     echo "Starting mst $dataset with NUM_NN=$NUM_NN, NUM_NN_TAKE=$NUM_NN_TAKE, M=$M, NUM_THREADS=$NUM_THREADS at $(now_iso)"
 
     start=$(now_ts)
-    # gdb --args
     ./mst_builder "$NN_DIR/" "$OUT_DIR/" "${NUM_NN_TAKE}" --pq-template "$PQ_DIR/" || exit 1
     t=$(diff_ts $start)
     echo $t > "$OUT_DIR/time_${NUM_THREADS}"

@@ -9,6 +9,7 @@
 #include "stats.h"
 #include "misc.h"
 #include "vecs_io.h"
+#include "mst.h"
 
 enum {
     SORT_NOSORT = 0,
@@ -18,6 +19,7 @@ enum {
 
 typedef struct _config {
     const char* pq_input_template;
+    const char* tree_input;
     const char* output_template;
     int m;
     int k_star;
@@ -28,15 +30,18 @@ typedef struct _config {
     char* pq_input_indices;
     // char* pq_input_centroids;
     char* output_codebooks;
+    char* output_children_codebook;
     char* output_encoded_indices;
+    char* output_encoded_children;
     char* output_stats;
+    char* output_children_stats;
 
     long long num_vectors;
 } config_t;
 
 static void print_help(const char* argv0) {
     fprintf(stderr, "Usage: %s <pq-output-template> <output-template> <m>"
-                    " [--no-sort] [--no-context] [--only-estimate]\n", argv0);
+                    " [--no-sort] [--no-context] [--only-estimate] [--tree <tree path>]\n", argv0);
     exit(1);
 }
 
@@ -57,6 +62,7 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
 
     config->pq_input_template = argv[1];
     config->output_template = argv[2];
+    config->tree_input = NULL;
     config->m = atoi(argv[3]);
     config->only_estimate = 0;
     config->sort = SORT_SORT;
@@ -71,6 +77,9 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
             config->sort = SORT_SHUFFLE;
         } else if (!strcmp(*arg, "--no-context")) {
             config->context = 0;
+        } else if (!strcmp(*arg, "--tree")) {
+            ++arg;
+            config->tree_input = *arg;
         } else {
             fprintf(stderr, "Unknown arg: %s\n", *arg);
             print_help(argv[0]);
@@ -82,8 +91,12 @@ static void parse_args(config_t* config, int argc, const char* argv[]) {
     config->pq_input_indices = concat(config->pq_input_template, "pq_indices.bvecsl");
     // config->pq_input_centroids = concat(config->pq_input_template, "pq_centroids.fvecsl");
     config->output_codebooks = concat(config->output_template, "huffman_codebooks.bin");
+    config->output_children_codebook = concat(config->output_template,
+                                               "huffman_children_codebooks.bin");
     config->output_encoded_indices = concat(config->output_template, "huffman_indices.bin");
+    config->output_encoded_children = concat(config->output_template, "huffman_children.bin");
     config->output_stats = concat(config->output_template, "huffman_stats.txt");
+    config->output_children_stats = concat(config->output_template, "huffman_children_stats.txt");
 
     config->num_vectors = load_num_vectors(config->pq_input_indices, config->m);
 }
@@ -101,13 +114,25 @@ static void config_free(config_t* config) {
         free(config->output_codebooks);
         config->output_codebooks = NULL;
     }
+    if (config->output_children_codebook) {
+        free(config->output_children_codebook);
+        config->output_children_codebook = NULL;
+    }
     if (config->output_encoded_indices) {
         free(config->output_encoded_indices);
         config->output_encoded_indices = NULL;
     }
+    if (config->output_encoded_children) {
+        free(config->output_encoded_children);
+        config->output_encoded_children = NULL;
+    }
     if (config->output_stats) {
         free(config->output_stats);
         config->output_stats = NULL;
+    }
+    if (config->output_children_stats) {
+        free(config->output_children_stats);
+        config->output_children_stats = NULL;
     }
 }
 
@@ -138,34 +163,44 @@ static double* collect_non_context_stats(const config_t* config, const byte_t* d
     return stats;
 }
 
-static double* collect_context_stats(const config_t* config, const byte_t* data) {
+static double* collect_context_stats(const config_t* config, const byte_t* data,
+                                     const vector_id_t* vertices, const int* num_children,
+                                     int* num_roots_out) {
     int alphabet_size = config->k_star * config->k_star;
     double* stats = malloc(sizeof(*stats) * config->m * alphabet_size);
     for (int i = 0; i < config->m * alphabet_size; ++i) {
         stats[i] = 0.0;
     }
 
-    const byte_t* current_vec = data + config->m;
-    const byte_t* prev_vec = data;
-    for (;
-         current_vec != data + config->m * config->num_vectors;
-         current_vec += config->m, prev_vec += config->m)
-    {
-        for (int i = 0; i < config->m; ++i) {
-            stats[i * alphabet_size + (prev_vec[i] << BYTE_NUM_BITS) + current_vec[i]] += 1;
-        }
-    }
-    for (int i = 0; i < config->m; ++i) {
-        double stats_sum = 0.0;
-        for (double* stat_it = stats + alphabet_size * i;
-             stat_it != stats + alphabet_size * (i + 1);
-             ++stat_it)
+    int num_roots = 1;
+    if (vertices) {
+        num_roots = tree_collect_indices_stats(config->num_vectors, config->m, data, vertices,
+                                               num_children, stats);
+    } else {
+        const byte_t* current_vec = data + config->m;
+        const byte_t* prev_vec = data;
+        for (;
+             current_vec != data + config->m * config->num_vectors;
+             current_vec += config->m, prev_vec += config->m)
         {
-            stats_sum += *stat_it;
+            for (int i = 0; i < config->m; ++i) {
+                stats[i * alphabet_size + (prev_vec[i] << BYTE_NUM_BITS) + current_vec[i]] += 1;
+            }
         }
-        assert(((long long) stats_sum + 1) == config->num_vectors);
+        for (int i = 0; i < config->m; ++i) {
+            double stats_sum = 0.0;
+            for (double* stat_it = stats + alphabet_size * i;
+                 stat_it != stats + alphabet_size * (i + 1);
+                 ++stat_it)
+            {
+                stats_sum += *stat_it;
+            }
+            assert(((long long) stats_sum + 1) == config->num_vectors);
+        }
     }
-
+    if (num_roots_out) {
+        *num_roots_out = num_roots;
+    }
     return stats;
 }
 
@@ -202,6 +237,48 @@ static void encode_context_data(const config_t* config, const byte_t* data,
     }
 }
 
+static void encode_tree_data(const config_t* config, const byte_t* data,
+                             const huffman_codebook_t* codebooks, bit_stream_t* stream,
+                             const vector_id_t* vertices, const int* num_children) {
+    tree_traverser_t traverser;
+    tree_traverser_init(&traverser, config->num_vectors);
+
+    const int* num_children_it = num_children;
+    const vector_id_t* vertices_it = vertices;
+    for (long long vec_index = 0; vec_index < config->num_vectors; ++vec_index) {
+        vector_id_t current_vector_id = vertices_it ? *vertices_it : vec_index;
+        const byte_t* current_vector = data + current_vector_id * config->m;
+
+        vector_id_t prev_vector_id = tree_traverser_get_active_parent(&traverser);
+        const byte_t* prev_vector = prev_vector_id != TRAVERSER_NO_PARENT_VECTOR
+                ? data + prev_vector_id
+                : NULL;
+        for (int part_index = 0; part_index < config->m; ++part_index) {
+            const huffman_codebook_t* codebook = codebooks + part_index;
+            if (prev_vector) {
+                long long item_index = config->k_star * prev_vector[part_index]
+                        + current_vector[part_index];
+                const huffman_code_item_t* item = &codebook->items[item_index];
+                bit_stream_write(stream, item->code, item->bit_length);
+            } else {
+                bit_stream_write(stream, current_vector + part_index, BYTE_NUM_BITS);
+            }
+        }
+
+        int current_num_children = num_children_it ? *num_children_it : 1;
+        tree_traverser_push_vertex(&traverser, current_vector_id, current_num_children);
+
+        if (num_children) {
+            ++num_children_it;
+        }
+        if (vertices) {
+            ++vertices_it;
+        }
+    }
+
+    tree_traverser_destroy(&traverser);
+}
+
 static void shuffle(const config_t* config, byte_t* data) {
     byte_t* tmp = malloc(sizeof(byte_t) * config->m);
     long long vec_size = config->m * sizeof(byte_t);
@@ -236,11 +313,54 @@ static void run(const config_t* config) {
 
     double* stats;
     int alphabet_size = config->k_star;
+    vector_id_t* vertices = NULL;
+    int* num_children = NULL;
+    if (config->tree_input) {
+        tree_t tree;
+        tree_load_filename(&tree, config->tree_input);
+        vertices = malloc(sizeof(*vertices) * config->num_vectors);
+        num_children = malloc(sizeof(*num_children) * config->num_vectors);
+        tree_collect_vertices_dfs(&tree, vertices, num_children);
+        tree_destroy(&tree);
+    }
+    int num_roots = 0;
     if (config->context) {
-        stats = collect_context_stats(config, data);
+        stats = collect_context_stats(config, data, vertices, num_children, &num_roots);
         alphabet_size *= config->k_star;
     } else {
         stats = collect_non_context_stats(config, data);
+    }
+
+    if (num_children) {
+        int children_alphabet_size = 0;
+        double* symbol_counts = tree_collect_num_children_stats(config->num_vectors, num_children,
+                                                                &children_alphabet_size);
+        huffman_codebook_t codebook;
+        huffman_codebook_encode_init(&codebook, children_alphabet_size, symbol_counts);
+
+        FILE* codebook_file = fopen(config->output_children_codebook, "w");
+        huffman_codebook_save(&codebook, codebook_file);
+        fclose(codebook_file);
+
+        FILE* children_file = fopen(config->output_encoded_children, "w");
+        bit_stream_t* bitstream = bit_stream_create_from_file(children_file);
+        for (const int* children_it = num_children;
+             children_it != num_children + config->num_vectors;
+             ++children_it)
+        {
+            const huffman_code_item_t* item = &codebook.items[*children_it];
+            bit_stream_write(bitstream, item->code, item->bit_length);
+        }
+        bit_stream_destroy(bitstream);
+        fclose(children_file);
+
+        huffman_stats_t stats;
+        huffman_stats_init(&stats, config->num_vectors, config->m, config->k_star);
+        huffman_stats_print_filename(&stats, config->output_children_stats);
+        huffman_stats_destroy(&stats);
+
+        huffman_codebook_destroy(&codebook);
+        free(symbol_counts);
     }
 
     huffman_codebook_t* codebooks = malloc(sizeof(*codebooks) * config->m);
@@ -276,9 +396,14 @@ static void run(const config_t* config) {
     unsigned long long num_vectors_ll = config->num_vectors;
     fwrite(&num_vectors_ll, sizeof(num_vectors_ll), 1, encoded_indices_file);
     bit_stream_t* stream = bit_stream_create_from_file(encoded_indices_file);
-    if (config->context) {
+    if (config->tree_input) {
+        printf("use tree encoder\n");
+        encode_tree_data(config, data, codebooks, stream, vertices, num_children);
+    } else if (config->context) {
+        printf("use context encoder\n");
         encode_context_data(config, data, codebooks, stream);
     } else {
+        printf("use non-context encoder\n");
         encode_non_context_data(config, data, codebooks, stream);
     }
     stream = bit_stream_destroy(stream);
@@ -286,6 +411,10 @@ static void run(const config_t* config) {
 
     for (int i = 0; i < config->m; ++i) {
         huffman_codebook_destroy(&codebooks[i]);
+    }
+    if (config->tree_input) {
+        free(vertices);
+        free(num_children);
     }
     free(stats);
     free(data);
