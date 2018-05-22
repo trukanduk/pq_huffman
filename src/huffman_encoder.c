@@ -398,9 +398,14 @@ static void run(const config_t* config) {
     FILE* codebooks_file = fopen(config->output_codebooks, "wb");
     unsigned int m_int = config->m;
     fwrite(&m_int, sizeof(m_int), 1, codebooks_file);
+    long long sum_length = 0;
     for (int i = 0; i < config->m; ++i) {
+        for (int j = 0; j < 256 * 256; ++j) {
+            sum_length += codebooks[i].items[j].bit_length;
+        }
         huffman_codebook_save(codebooks + i, codebooks_file);
     }
+    printf("SUM LENGTH %lld, MEAN %lf\n", sum_length, 1.0 * sum_length / 256 / 256 / config->m);
     fclose(codebooks_file);
 
     // huffman_codebook_dump(codebooks, stdout);
