@@ -6,7 +6,8 @@ print_help() {
     echo "Usage NUM_NN=100 NUM_THREADS=4 $0 nn-exact <dataset>" >&2
     echo "      NUM_NN=100 NUM_THREADS=4 NUM_DIM=3 NUM_BLOSKS=10 OVERLAP=1e-2 $0 nn-fast <dataset>" >&2
     echo "      M=8 NUM_THREADS=4 $0 pq <dataset>" >&2
-    echo "      M=8 SORT=(nosoft|sort|shuffle) CONTEXT=0 $0 huffman <dataset>" >&2
+    echo "      M=8 SORT=(nosoft|sort|shuffle|tree) TREE=nn10_m8 CONTEXT=0 $0 huffman <dataset>" >&2
+    echo "      M=8 NUM_NN=50 NUM_NN_TAKE=5 PENALTY=0.01 $0 mst <dataset>" >&2
     exit 1
 }
 
@@ -78,7 +79,7 @@ then
     start=$(now_ts)
     ./compute_nn_fast "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" $NUM_NN \
             --with-blocks-stat --num-threads $NUM_THREADS --num-dims $NUM_DIM \
-            --block-overlap-fraction $OVERLAP --num-blocks-per-dim $NUM_BLOCKS >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+            --block-overlap-fraction $OVERLAP --num-blocks-per-dim $NUM_BLOCKS 2>> "$OUT_DIR/stderr.log" | tee "$OUT_DIR/stdout.log" || exit 1
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
 
@@ -215,7 +216,8 @@ then
     fi
 
     start=$(now_ts)
-    gdb --args ./huffman_decoder "$ENCODED_DIR/" $ACTION_FLAG $ACTION_FLAG2 $TREE_FLAG # | tee >> "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
+    #gdb --args
+    ./huffman_decoder "$ENCODED_DIR/" $ACTION_FLAG $ACTION_FLAG2 $TREE_FLAG | tee "$OUT_DIR/stdout.log" 2>> "$OUT_DIR/stderr.log" || exit 1
 
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${ACTION}"
@@ -227,18 +229,24 @@ then
 
     NUM_NN=${NUM_NN:-50}
     NUM_NN_TAKE=${NUM_NN_TAKE:-5}
+    PQ_PENALTY=${PQ_PENALTY:-0}
     M=${M:-8}
     NUM_THREADS=${NUM_THREADS:-1}
 
     NN_DIR="$PQ_HOME/out/nn/${dataset}_${NUM_NN}"
     PQ_DIR="$PQ_HOME/out/pq/${dataset}_${M}"
-    OUT_DIR="$PQ_HOME/out/mst/${dataset}_nn${NUM_NN_TAKE}_m${M}"
+    if [ "$PQ_PENALTY" -eq '0' -o "$PQ_PENALTY" = '0.0' ]
+    then
+        export OUT_DIR="$PQ_HOME/out/mst/${dataset}_nn${NUM_NN_TAKE}_m${M}"
+    else
+        export OUT_DIR="$PQ_HOME/out/mst/${dataset}_nn${NUM_NN_TAKE}_m${M}_p${PQ_PENALTY}"
+    fi
     mkdir -p $OUT_DIR
 
     echo "Starting mst $dataset with NUM_NN=$NUM_NN, NUM_NN_TAKE=$NUM_NN_TAKE, M=$M, NUM_THREADS=$NUM_THREADS at $(now_iso)"
 
     start=$(now_ts)
-    ./mst_builder "$NN_DIR/" "$OUT_DIR/" "${NUM_NN_TAKE}" --pq-template "$PQ_DIR/" || exit 1
+    ./mst_builder "$NN_DIR/" "$OUT_DIR/" "${NUM_NN_TAKE}" --pq-template "$PQ_DIR/" --pq-penalty "$PQ_PENALTY" || exit 1
     t=$(diff_ts $start)
     echo $t > "$OUT_DIR/time_${NUM_THREADS}"
 

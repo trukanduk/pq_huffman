@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "dsu.h"
 #include "vecs_io.h"
@@ -79,8 +80,6 @@ mst_edge_t* load_mst_edges_from_nn_filenames(long long num_vectors, int num_nn_t
 mst_edge_t* load_mst_edges_from_nn_files(long long num_vectors, int num_nn_to_load, int pq_m,
                                          float pq_penalty, const byte_t* pq_indices,
                                          FILE* indices_file, FILE* dist_file) {
-    // TODO: FIXME: float pq_penalty, const byte_t* pq_indices
-
     long long num_vectors_ind, num_vectors_dist;
     int num_nn, num_nn_dist;
     load_vecs_light_meta_file(indices_file, &num_vectors_ind, &num_nn);
@@ -100,24 +99,59 @@ mst_edge_t* load_mst_edges_from_nn_files(long long num_vectors, int num_nn_to_lo
     mst_edge_t* result_it = result;
 
     vector_id_t* indices_batch = malloc(sizeof(*indices_batch) * num_nn * NN_LOADER_BATCH_SIZE);
+    float* dist_batch = malloc(sizeof(*dist_batch) * num_nn * NN_LOADER_BATCH_SIZE);
+    mst_edge_t* row_tmp_batch = malloc(sizeof(*row_tmp_batch) * num_nn);
+
     long long got_vectors = 0;
     while (got_vectors < num_vectors) {
         long long current_batch_size = iminll(NN_LOADER_BATCH_SIZE, num_vectors - got_vectors);
         fread(indices_batch, sizeof(vector_id_t) * num_nn, current_batch_size, indices_file);
+        fread(dist_batch, sizeof(float) * num_nn, current_batch_size, dist_file);
         for (long long vec_index = 0; vec_index < current_batch_size; ++vec_index) {
-            for (int nn_index = 0; nn_index < num_nn_to_load; ++nn_index, ++result_it) {
-                result_it->source = got_vectors + vec_index;
-                result_it->target = indices_batch[num_nn * vec_index + nn_index];
+            const byte_t* source_pq_indices = pq_indices + (got_vectors + vec_index) * pq_m;
+            for (int nn_index = 0; nn_index < num_nn; ++nn_index) {
+                row_tmp_batch[nn_index].source = got_vectors + vec_index;
+                row_tmp_batch[nn_index].target = indices_batch[num_nn * vec_index + nn_index];
+                row_tmp_batch[nn_index].dist = dist_batch[num_nn * vec_index + nn_index];
+
+                const byte_t* target_pq_indices = pq_indices + row_tmp_batch[nn_index].target * pq_m;
+                if (pq_penalty > 0.0f) {
+                    int pq_indices_hamming_distance = 0;
+                    for (int part_index = 0; part_index < pq_m; ++part_index) {
+                        pq_indices_hamming_distance += (source_pq_indices[part_index] != target_pq_indices[part_index]);
+                    }
+
+                    // printf("%d %f %f\n", pq_indices_hamming_distance, row_tmp_batch[nn_index].dist, pq_indices_hamming_distance * pq_penalty);
+                    if (isinf(pq_penalty)) {
+                        row_tmp_batch[nn_index].dist = pq_indices_hamming_distance;
+                    } else {
+                        row_tmp_batch[nn_index].dist += pq_indices_hamming_distance * pq_penalty;
+                    }
+                }
             }
+
+            if (pq_penalty > 0.0f) {
+                qsort(row_tmp_batch, num_nn, sizeof(mst_edge_t), mst_dist_comparator);
+            }
+
+            memcpy(result_it, row_tmp_batch, num_nn_to_load * sizeof(mst_edge_t));
+            result_it += num_nn_to_load;
+
+            // for (int nn_index = 0; nn_index < num_nn_to_load; ++nn_index, ++result_it) {
+            //     result_it->source = got_vectors + vec_index;
+            //     result_it->target = indices_batch[num_nn * vec_index + nn_index];
+            //     result_it->dist = dist_batch[num_nn * vec_index + nn_index];
+            // }
         }
         got_vectors += current_batch_size;
     }
     assert(result_it == result + num_vectors * num_nn_to_load);
     free(indices_batch);
     indices_batch = NULL;
-
+    free(dist_batch);
+    dist_batch = NULL;
+#if 0
     result_it = result;
-    float* dist_batch = malloc(sizeof(*dist_batch) * num_nn * NN_LOADER_BATCH_SIZE);
     got_vectors = 0;
     while (got_vectors < num_vectors) {
         long long current_batch_size = iminll(NN_LOADER_BATCH_SIZE, num_vectors - got_vectors);
@@ -132,7 +166,7 @@ mst_edge_t* load_mst_edges_from_nn_files(long long num_vectors, int num_nn_to_lo
     assert(result_it == result + num_vectors * num_nn_to_load);
     free(dist_batch);
     dist_batch = NULL;
-
+#endif
     return result;
 }
 
