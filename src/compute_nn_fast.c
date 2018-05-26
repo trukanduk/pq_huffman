@@ -847,8 +847,8 @@ int main(int argc, const char* argv[]) {
     config_t config = parse_args(argc, argv);
     if (config.init_temp_file) {
         init_temp_file(config.temp_file, config.num_vectors, config.num_nn);
+        printf("Temp file: Done\n");
     }
-    printf("Temp file: Done\n");
 
     blocks_info_t blocks_info;
     if (!config.blocks_info_cache
@@ -860,8 +860,10 @@ int main(int argc, const char* argv[]) {
         if (config.blocks_info_cache) {
             blocks_info_save_filename(&blocks_info, config.blocks_info_cache);
         }
+        printf("Blocks info: Done\n");
+    } else {
+        printf("Blocks info: Loaded\n");
     }
-    printf("Blocks info: Done\n");
 
     run(&config, &blocks_info);
     // test_block_loaders(&config, &blocks_info);

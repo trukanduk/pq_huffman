@@ -83,9 +83,11 @@ then
             --block-overlap-fraction $OVERLAP --num-blocks-per-dim $NUM_BLOCKS \
             $(ifif "$BLOCK_START" "--blocks-from $BLOCK_START" "") $(ifif "$BLOCK_END" "--blocks-to $BLOCK_END" "") \
             --blocks-info-cache "$OUT_DIR/blocks_info_cache.dat" \
-            --num-dimensions-at-pass $NUM_DIN_AT_PASS 2>> "$OUT_DIR/stderr.log" | tee "$OUT_DIR/stdout.log" || exit 1
+            --num-dimensions-at-pass $NUM_DIM_AT_PASS \
+            $(ifif "$NO_INIT_TEMP_FILE" "--no-init-temp-file" "") --no-delete-temp-file 2>> "$OUT_DIR/stderr.log" | tee "$OUT_DIR/stdout.log" || exit 1
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
+    exit 0
 
     echo "    Done nn in $(diff_iso $start). Starting compare..."
     EXACT_OUT="$PQ_HOME/out/nn/${dataset}_${NUM_NN}"
