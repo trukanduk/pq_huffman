@@ -70,6 +70,7 @@ then
     NUM_DIM=${NUM_DIM:-3}
     OVERLAP=${OVERLAP:-0.01}
     NUM_BLOCKS=${NUM_BLOCKS:-10}
+    NUM_DIM_AT_PASS=${NUM_DIM_AT_PASS:-0}
 
     OUT_DIR="$PQ_HOME/out/nn/${dataset}_${NUM_NN}_d${NUM_DIM}_b${NUM_BLOCKS}_o${OVERLAP}"
     mkdir -p "$OUT_DIR"
@@ -79,7 +80,10 @@ then
     start=$(now_ts)
     ./compute_nn_fast "$PQ_HOME/data/${dataset}.fvecs" "$OUT_DIR/" $NUM_NN \
             --with-blocks-stat --num-threads $NUM_THREADS --num-dims $NUM_DIM \
-            --block-overlap-fraction $OVERLAP --num-blocks-per-dim $NUM_BLOCKS 2>> "$OUT_DIR/stderr.log" | tee "$OUT_DIR/stdout.log" || exit 1
+            --block-overlap-fraction $OVERLAP --num-blocks-per-dim $NUM_BLOCKS \
+            $(ifif "$BLOCK_START" "--blocks-from $BLOCK_START" "") $(ifif "$BLOCK_END" "--blocks-to $BLOCK_END" "") \
+            --blocks-info-cache "$OUT_DIR/blocks_info_cache.dat" \
+            --num-dimensions-at-pass $NUM_DIN_AT_PASS 2>> "$OUT_DIR/stderr.log" | tee "$OUT_DIR/stdout.log" || exit 1
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
 

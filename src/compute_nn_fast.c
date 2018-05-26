@@ -115,6 +115,10 @@ void dimension_info_destroy(block_dimension_info_t* dimension_info);
 void blocks_info_init(blocks_info_t* blocks_info, const char* input_filename, long long num_vectors,
                       int num_dimensions, int num_dimensions_to_split, int num_blocks,
                       double block_overlap_fraction);
+void blocks_info_save_filename(const blocks_info_t* blocks_info, const char* filename);
+void blocks_info_save_file(const blocks_info_t* blocks_info, FILE* file);
+int blocks_info_load_filename(blocks_info_t* blocks_info, const char* filename);
+void blocks_info_load_file(blocks_info_t* blocks_info, FILE* file);
 void blocks_info_destroy(blocks_info_t* blocks_info);
 int is_vector_in_block(float* vector, int num_dimensions, blocks_info_t* blocks_info,
                        long long block_id);
@@ -222,6 +226,7 @@ void blocks_info_init(blocks_info_t* blocks_info, const char* input_filename, lo
             malloc(sizeof(*blocks_info->dimension_infos) * num_dimensions_to_split);
     blocks_info->num_blocks_total = 1;
     for (int i = 0; i < num_dimensions_to_split; ++i) {
+        printf("Starting block info for dimension %d", i);
         int dimension = -1;
         int has_collision = 1;
         while (has_collision) {
@@ -235,6 +240,66 @@ void blocks_info_init(blocks_info_t* blocks_info, const char* input_filename, lo
         dimension_info_build(blocks_info->dimension_infos + i, input_filename, num_vectors,
                              num_dimensions, dimension, num_blocks, block_overlap_fraction);
         blocks_info->num_blocks_total *= num_blocks;
+    }
+}
+
+void blocks_info_save_filename(const blocks_info_t* blocks_info, const char* filename) {
+    FILE* file = fopen(filename, "wb");
+    if (!file) {
+        fprintf(stderr, "Cannot open file: %s\n", filename);
+        return;
+    }
+    blocks_info_save_file(blocks_info, file);
+    fclose(file);
+}
+
+void blocks_info_save_file(const blocks_info_t* blocks_info, FILE* file) {
+    fwrite(&blocks_info->num_dimensions, 1, sizeof(blocks_info->num_dimensions), file);
+    fwrite(&blocks_info->block_overlap_fraction, 1, sizeof(blocks_info->block_overlap_fraction),
+           file);
+    fwrite(&blocks_info->num_blocks_per_dim, 1, sizeof(blocks_info->num_blocks_per_dim), file);
+    fwrite(&blocks_info->num_blocks_total, 1, sizeof(blocks_info->num_blocks_total), file);
+    for (int dim_index = 0; dim_index < blocks_info->num_dimensions; ++dim_index) {
+        const block_dimension_info_t* dimension_info = blocks_info->dimension_infos + dim_index;
+
+        fwrite(&dimension_info->dimension, 1, sizeof(dimension_info->dimension), file);
+        fwrite(&dimension_info->block_id_mask, 1, sizeof(dimension_info->block_id_mask), file);
+        fwrite(dimension_info->block_starts, dimension_info->num_blocks * 2,
+               sizeof(*dimension_info->block_starts), file);
+    }
+}
+
+int blocks_info_load_filename(blocks_info_t* blocks_info, const char* filename) {
+    FILE* file = fopen(filename, "rb");
+    if (!file) {
+        fprintf(stderr, "No dimensions info file: %s\n", filename);
+        return 0;
+    }
+    blocks_info_load_file(blocks_info, file);
+    fclose(file);
+    return 1;
+}
+
+void blocks_info_load_file(blocks_info_t* blocks_info, FILE* file) {
+    fread(&blocks_info->num_dimensions, 1, sizeof(blocks_info->num_dimensions), file);
+    fread(&blocks_info->block_overlap_fraction, 1, sizeof(blocks_info->block_overlap_fraction),
+           file);
+    fread(&blocks_info->num_blocks_per_dim, 1, sizeof(blocks_info->num_blocks_per_dim), file);
+    fread(&blocks_info->num_blocks_total, 1, sizeof(blocks_info->num_blocks_total), file);
+    blocks_info->dimension_infos = malloc(
+            sizeof(*blocks_info->dimension_infos) * blocks_info->num_dimensions);
+    for (int dim_index = 0; dim_index < blocks_info->num_dimensions; ++dim_index) {
+        block_dimension_info_t* dimension_info = blocks_info->dimension_infos + dim_index;
+
+        fread(&dimension_info->dimension, 1, sizeof(dimension_info->dimension), file);
+        dimension_info->num_blocks = blocks_info->num_blocks_per_dim;
+        dimension_info->block_overlap_fraction = blocks_info->block_overlap_fraction;
+        fread(&dimension_info->block_id_mask, 1, sizeof(dimension_info->block_id_mask), file);
+        dimension_info->block_starts = malloc(
+                sizeof(*dimension_info->block_starts) * dimension_info->num_blocks * 2);
+        dimension_info->block_ends = dimension_info->block_starts + dimension_info->num_blocks;
+        fread(dimension_info->block_starts, dimension_info->num_blocks * 2,
+               sizeof(*dimension_info->block_starts), file);
     }
 }
 
@@ -396,12 +461,17 @@ typedef struct _config {
 
     // NOTE: Optional args
     const char* temp_file;
+    const char* blocks_info_cache;
     int delete_temp_file;
+    int init_temp_file;
     int num_dims_to_split;
     double block_overlap_fraction;
     int num_blocks_per_dim;
     int num_threads;
     int with_blocks_stat;
+    long long end_block_id;
+    long long begin_block_id;
+    long long num_dimensions_on_pass;
 
     // NOTE: computed args
     const char* output_indices_filename;
@@ -415,7 +485,7 @@ typedef struct _config {
 } config_t;
 
 typedef struct _dataset_metainfo {
-    int num_vectors;
+    long long num_vectors;
     int num_dimensions;
 } dataset_metainfo_t;
 
@@ -429,9 +499,13 @@ void print_help(const char* argv0) {
     fprintf(stderr, "Optionl args:\n");
     fprintf(stderr, "  --temp-file <file>                         temp file path (default is nn_temp.vecs)\n");
     fprintf(stderr, "  --delete-temp-file, --no-delete-temp-file  delete temp file when done (default is true)\n");
+    fprintf(stderr, "  --init-temp-file, --no-init-temp-file      clear old results of temp file (default is true)\n");
     fprintf(stderr, "  --num-dims <value>                         num dimensions to process (default is 5)\n");
     fprintf(stderr, "  --num-blocks-per-dim <value>               num blocks for each dimension (default is 2)\n");
-    fprintf(stderr, "  --block-overlap-fraction <value>           fraction of dimension which should  (default is 0.3)\n");
+    fprintf(stderr, "  --block-overlap-fraction <value>           fraction of dimension foroverlap (default is 0.3)\n");
+    fprintf(stderr, "  --blocks-info-cache <value>                blocks info cache file (default is none)\n");
+    fprintf(stderr, "  --num-dimensions-at-pass <value>           num dimensions to process on pass(default is 0)\n");
+    fprintf(stderr, "  --blocks-from <value> --blocks-to <value>  start from/end on given block ids (default is all)\n");
 }
 
 dataset_metainfo_t get_metainfo(const char* input_filename) {
@@ -465,12 +539,17 @@ config_t parse_args(int argc, const char* argv[]) {
     config.output_files_template = argv[arg_index++];
     config.num_nn = atoi(argv[arg_index++]);
     config.temp_file = "nn_temp.vecs";
+    config.blocks_info_cache = NULL;
     config.delete_temp_file = 1;
+    config.init_temp_file = 1;
     config.num_dims_to_split = 5;
     config.block_overlap_fraction = 0.3;
     config.num_blocks_per_dim = 3;
     config.num_threads = 1;
     config.with_blocks_stat = 0;
+    config.begin_block_id = 0;
+    config.end_block_id = -1;
+    config.num_dimensions_on_pass = 0;
 
     config.output_indices_filename = NULL;
     config.output_dists_filename = NULL;
@@ -486,8 +565,14 @@ config_t parse_args(int argc, const char* argv[]) {
             config.delete_temp_file = 0;
         } else if (!strcmp(argv[arg_index], "--delete-temp-file")) {
             config.delete_temp_file = 1;
+        } else if (!strcmp(argv[arg_index], "--no-init-temp-file")) {
+            config.init_temp_file = 0;
+        } else if (!strcmp(argv[arg_index], "--init-temp-file")) {
+            config.init_temp_file = 1;
         } else if (!strcmp(argv[arg_index], "--temp-file")) {
             config.temp_file = argv[++arg_index];
+        } else if (!strcmp(argv[arg_index], "--blocks-info-cache")) {
+            config.blocks_info_cache = argv[++arg_index];
         } else if (!strcmp(argv[arg_index], "--num-dims")) {
             config.num_dims_to_split = atoi(argv[++arg_index]);
         } else if (!strcmp(argv[arg_index], "--block-overlap-fraction")) {
@@ -496,6 +581,12 @@ config_t parse_args(int argc, const char* argv[]) {
             config.num_blocks_per_dim = atoi(argv[++arg_index]);
         } else if (!strcmp(argv[arg_index], "--num-threads")) {
             config.num_threads = atoi(argv[++arg_index]);
+        } else if (!strcmp(argv[arg_index], "--blocks-from")) {
+            config.begin_block_id = atoll(argv[++arg_index]);
+        } else if (!strcmp(argv[arg_index], "--blocks-to")) {
+            config.end_block_id = atoll(argv[++arg_index]) - 1;
+        } else if (!strcmp(argv[arg_index], "--num-dimensions-at-pass")) {
+            config.num_dimensions_on_pass = atoll(argv[++arg_index]);
         } else {
             fprintf(stderr, "Unknown arg %s\n", argv[arg_index]);
             ok = 0;
@@ -627,9 +718,22 @@ void run(config_t* config, blocks_info_t* blocks_info) {
     int* result_indices = malloc(result_indices_row_size * result_capacity);
     float* result_dists = malloc(result_dists_row_size * result_capacity);
 
-    for (long long block_id = 0; block_id < blocks_info->num_blocks_total; ++block_id) {
+    long long begin_block_id = config->begin_block_id;
+    if (begin_block_id > blocks_info->num_blocks_total) {
+        begin_block_id = blocks_info->num_blocks_total;
+    }
+
+    long long end_block_id = config->end_block_id;
+    if (end_block_id < 0 || end_block_id > blocks_info->num_blocks_total) {
+        end_block_id = blocks_info->num_blocks_total;
+    } else if (end_block_id > config->begin_block_id) {
+        end_block_id = config->begin_block_id;
+    }
+    for (long long block_id = begin_block_id; block_id < end_block_id; ++block_id) {
         if (block_id % 100 == 0) {
-            printf("Start block %lld / %lld\n", block_id, blocks_info->num_blocks_total);
+            printf("Start block %6lld / %6lld (%6lld / %6lld)\n",
+                block_id - begin_block_id, end_block_id - begin_block_id,
+                block_id, blocks_info->num_blocks_total);
         }
 
         int active_buffer = block_id % NUM_BUFFERS;
@@ -738,13 +842,26 @@ void run(config_t* config, blocks_info_t* blocks_info) {
 }
 
 int main(int argc, const char* argv[]) {
+    setvbuf(stdout, NULL, _IONBF, 0);
+
     config_t config = parse_args(argc, argv);
-    init_temp_file(config.temp_file, config.num_vectors, config.num_nn);
+    if (config.init_temp_file) {
+        init_temp_file(config.temp_file, config.num_vectors, config.num_nn);
+    }
+    printf("Temp file: Done\n");
 
     blocks_info_t blocks_info;
-    blocks_info_init(&blocks_info, config.input_filename, config.num_vectors, config.num_dimensions,
-                     config.num_dims_to_split, config.num_blocks_per_dim,
-                     config.block_overlap_fraction);
+    if (!config.blocks_info_cache
+        || !blocks_info_load_filename(&blocks_info, config.blocks_info_cache))
+    {
+        blocks_info_init(&blocks_info, config.input_filename, config.num_vectors,
+                         config.num_dimensions, config.num_dims_to_split, config.num_blocks_per_dim,
+                         config.block_overlap_fraction);
+        if (config.blocks_info_cache) {
+            blocks_info_save_filename(&blocks_info, config.blocks_info_cache);
+        }
+    }
+    printf("Blocks info: Done\n");
 
     run(&config, &blocks_info);
     // test_block_loaders(&config, &blocks_info);
