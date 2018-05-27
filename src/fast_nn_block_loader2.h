@@ -12,6 +12,7 @@ typedef struct _block_loader2 {
     long long num_vectors;
     int num_dimensions;
     const blocks_info_t* blocks_info;
+    int common_prefix;
     int num_blocks_to_load;
     block_t* blocks;
     long long global_indices_capacity;
@@ -23,7 +24,11 @@ void block_loader2_init_from_blocks(block_loader2_t* block_loader, const char* i
                                     long long num_vectors, int num_dimensions,
                                     const blocks_info_t* block_info, block_t* blocks,
                                     long long num_blocks);
+void block_loader2_set_common_prefix(block_loader2_t* block_loader, int common_prefix);
 void block_loader2_set_start_block_id(block_loader2_t* block_loader, long long start_block);
+void block_loader2_set_start_block_id_with_prefix(block_loader2_t* block_loader,
+                                                  long long start_block,
+                                                  int common_prefix);
 void block_loader2_destroy(block_loader2_t* block_loader);
 
 void block_loader2_start(block_loader2_t* block_loader);

@@ -49,9 +49,9 @@ static int float_cmp(const void* left, const void* right) {
     }
 }
 
-void dimension_info_build(block_dimension_info_t* dimension_info, const char* input_filename,
-                          long long num_vectors, int num_dimensions, int dimension_to_use,
-                          int num_blocks, double block_overlap_fraction)
+void dimension_info_build(block_dimension_info_t* dimension_info,
+                          const char* input_filename, long long num_vectors, int num_dimensions,
+                          int dimension_to_use, int num_blocks, double block_overlap_fraction)
 {
     float* dimension = malloc(sizeof(*dimension) * num_vectors);
     load_vectors_dim(input_filename, num_vectors, num_dimensions, dimension_to_use, dimension);
@@ -65,8 +65,8 @@ void dimension_info_build(block_dimension_info_t* dimension_info, const char* in
     }
     dimension_info->block_starts = malloc(sizeof(*dimension_info->block_starts) * num_blocks * 2);
     dimension_info->block_ends = dimension_info->block_starts + num_blocks;
-    printf("dim %d in [%lf, %lf], num_blocks %d, overlap %lf\n", dimension_to_use,
-           dimension[0], dimension[num_vectors - 1], num_blocks, block_overlap_fraction);
+    printf("dim %d in [%lf, %lf], num_blocks %d, overlap %lf, mask %lld\n", dimension_to_use,
+           dimension[0], dimension[num_vectors - 1], num_blocks, block_overlap_fraction, dimension_info->block_id_mask);
     long long num_overlapped = (long long)(num_vectors * block_overlap_fraction / 2);
     for (int i = 0; i < num_blocks; ++i) {
         long long start_index = num_vectors * i / num_blocks - num_overlapped;
@@ -102,16 +102,8 @@ void blocks_info_init(blocks_info_t* blocks_info, const char* input_filename, lo
             malloc(sizeof(*blocks_info->dimension_infos) * num_dimensions_to_split);
     blocks_info->num_blocks_total = 1;
     for (int i = 0; i < num_dimensions_to_split; ++i) {
-        printf("Starting block info for dimension %d", i);
-        int dimension = -1;
-        int has_collision = 1;
-        while (has_collision) {
-            dimension = rand() % num_dimensions_to_split;
-            has_collision = 0;
-            for (int j = 0; j < i && !has_collision; ++j) {
-                has_collision = (blocks_info->dimension_infos[j].dimension == dimension);
-            }
-        }
+        printf("Starting block info for dimension %d\n", i);
+        int dimension = num_dimensions_to_split - i - 1;
 
         dimension_info_build(blocks_info->dimension_infos + i, input_filename, num_vectors,
                              num_dimensions, dimension, num_blocks, block_overlap_fraction);
@@ -191,21 +183,58 @@ void blocks_info_destroy(blocks_info_t* blocks_info) {
     blocks_info->dimension_infos = NULL;
 }
 
+static int verbose = 0;
 int is_vector_in_block(const float* vector, int num_dimensions, const blocks_info_t* blocks_info,
                        long long block_id)
 {
-    block_dimension_info_t* dimension_infos = blocks_info->dimension_infos;
-    for (int i = 0; i < blocks_info->num_dimensions; ++i, ++dimension_infos) {
+    // verbose = 1;
+    return is_vector_in_blocks_slice(vector, num_dimensions, blocks_info, block_id, 0,
+                                     blocks_info->num_dimensions);
+}
+
+int is_vector_in_blocks_prefix(const float* vector, int num_dimensions,
+                               const blocks_info_t* blocks_info,
+                               long long block_id, int prefix_length)
+{
+    // verbose = 1;
+    return is_vector_in_blocks_slice(vector, num_dimensions, blocks_info, block_id, 0,
+                                     prefix_length);
+}
+
+int is_vector_in_blocks_suffix(const float* vector, int num_dimensions,
+                               const blocks_info_t* blocks_info,
+                               long long block_id, int prefix_length)
+{
+    return is_vector_in_blocks_slice(vector, num_dimensions, blocks_info, block_id, prefix_length,
+                                     blocks_info->num_dimensions);
+}
+
+int is_vector_in_blocks_slice(const float* vector, int num_dimensions,
+                              const blocks_info_t* blocks_info,
+                              long long block_id, int start_dimension, int end_dimension)
+{
+    verbose = 0;
+
+    if (verbose)
+        printf("From %d to %d: ", start_dimension, end_dimension);
+    const block_dimension_info_t* dimension_infos = blocks_info->dimension_infos + start_dimension;
+    for (int i = start_dimension; i < end_dimension; ++i, ++dimension_infos) {
         float dimension_value = vector[dimension_infos->dimension];
-        int dim_block_id = block_id
+        long long dim_block_id = block_id
                 / dimension_infos->block_id_mask
                 % blocks_info->num_blocks_per_dim;
+        if (verbose)
+            printf("(%d, %f, did=%lld, id=%lld, m=%lld) ", dimension_infos->dimension, dimension_value, dim_block_id, block_id, dimension_infos->block_id_mask);
         if (dimension_value < dimension_infos->block_starts[dim_block_id]
             || dimension_value > dimension_infos->block_ends[dim_block_id])
         {
+            if (verbose) printf("\\0\n");
+            verbose = 0;
             return 0;
         }
     }
+    if (verbose) printf("\\1\n");
+    verbose = 0;
     return 1;
 }
 

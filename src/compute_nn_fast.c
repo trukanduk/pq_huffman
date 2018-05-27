@@ -528,6 +528,8 @@ static void run(const config_t* config, const blocks_info_t* blocks_info) {
         block_loader2_init_from_blocks(block_loaders + i, config->input_filename,
                                        config->num_vectors, config->num_dimensions, blocks_info,
                                        blocks + i * num_blocks_on_pass, num_blocks_on_pass);
+        block_loader2_set_common_prefix(
+                block_loaders + i, blocks_info->num_dimensions - config->num_dimensions_on_pass);
         temp_file_loader_init(&temp_file_loaders[i], config->temp_file, config->num_nn,
                               block_initial_capacity);
     }
@@ -555,7 +557,7 @@ static void run(const config_t* config, const blocks_info_t* blocks_info) {
          block_id < end_block_id;
          block_id += num_blocks_on_pass)
     {
-        if (block_id % 100 == 0) {
+        if (block_id % 10 == 0) {
             printf("Start block %6lld / %6lld (%6lld / %6lld)\n",
                 block_id - begin_block_id, end_block_id - begin_block_id,
                 block_id, blocks_info->num_blocks_total);
@@ -567,6 +569,7 @@ static void run(const config_t* config, const blocks_info_t* blocks_info) {
 
         // printf("Starting block %lld\n", block_id);
         if (block_id + num_blocks_on_pass < end_block_id) {
+            block_loader2_join(block_loaders + next_buffer);
             block_loader2_set_start_block_id(block_loaders + next_buffer,
                                              block_id + num_blocks_on_pass);
             block_loader2_start(block_loaders + next_buffer);

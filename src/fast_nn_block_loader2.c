@@ -21,6 +21,7 @@ void block_loader2_init_from_blocks(block_loader2_t* block_loader, const char* i
     block_loader->input_filename = input_filename;
     block_loader->num_vectors = num_vectors;
     block_loader->num_dimensions = num_dimensions;
+    block_loader->common_prefix = 0;
     block_loader->blocks_info = blocks_info;
     block_loader->num_blocks_to_load = num_blocks;
     block_loader->blocks = blocks;
@@ -30,10 +31,20 @@ void block_loader2_init_from_blocks(block_loader2_t* block_loader, const char* i
             malloc(sizeof(*block_loader->global_indices) * block_loader->global_indices_capacity);
 }
 
+void block_loader2_set_common_prefix(block_loader2_t* block_loader, int common_prefix) {
+    block_loader->common_prefix = (block_loader->num_blocks_to_load > 1 ? common_prefix : 0);
+}
+
 void block_loader2_set_start_block_id(block_loader2_t* block_loader, long long start_block) {
     for (int block_index = 0; block_index < block_loader->num_blocks_to_load; ++block_index) {
         block_set_id(block_loader->blocks + block_index, start_block + block_index);
     }
+}
+
+void block_loader2_set_start_block_id_with_prefix(block_loader2_t* block_loader,
+                                                  long long start_block, int common_prefix) {
+    block_loader2_set_common_prefix(block_loader, common_prefix);
+    block_loader2_set_start_block_id(block_loader, start_block);
 }
 
 void block_loader2_destroy(block_loader2_t* block_loader) {
@@ -85,7 +96,8 @@ void* block_loader2_thread(void* arg) {
     }
     long long num_processed = 0;
     block_loader->global_indices_size = 0;
-    float* batch = malloc(sizeof(*batch) * (block_loader->num_dimensions + 1) * block_loader->num_vectors);
+    float* batch = malloc(
+            sizeof(*batch) * (block_loader->num_dimensions + 1) * block_loader->num_vectors);
     while (num_processed < block_loader->num_vectors) {
         long long current_batch_size = iminll(BATCH_SIZE, block_loader->num_vectors - num_processed);
         fread(batch, current_batch_size, sizeof(*batch) * (block_loader->num_dimensions + 1), file);
@@ -96,15 +108,27 @@ void* block_loader2_thread(void* arg) {
              ++vec_index, batch_it += block_loader->num_dimensions + 1)
         {
             int vector_taken = 0;
-            // OPTIMIZE: common blocks prefix?
+
+            if (block_loader->common_prefix > 0) {
+                int is_in_any_block = is_vector_in_blocks_prefix(
+                        batch_it + 1, block_loader->num_dimensions, block_loader->blocks_info,
+                        block_loader->blocks[0].id, block_loader->common_prefix);
+                if (!is_in_any_block) {
+                    continue;
+                }
+            }
+
             for (int block_index = 0;
                  block_index < block_loader->num_blocks_to_load;
                  ++block_index)
             {
                 block_t* block = block_loader->blocks + block_index;
                 int in_block = is_vector_in_block(batch_it + 1, block_loader->num_dimensions,
-                                                  block_loader->blocks_info, block->id);
+                                                          block_loader->blocks_info, block->id);
                 if (in_block) {
+                    // if (!is_in_any_block) {
+                    //     printf("%lld %lld %d\n", block_loader->blocks->id, block->id, block_index);
+                    // }
                     if (!vector_taken) {
                         block_loader2_push_index(block_loader, num_processed + vec_index);
                         vector_taken = 1;

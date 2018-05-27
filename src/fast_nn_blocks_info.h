@@ -34,7 +34,17 @@ void blocks_info_save_file(const blocks_info_t* blocks_info, FILE* file);
 int blocks_info_load_filename(blocks_info_t* blocks_info, const char* filename);
 void blocks_info_load_file(blocks_info_t* blocks_info, FILE* file);
 void blocks_info_destroy(blocks_info_t* blocks_info);
+
 int is_vector_in_block(const float* vector, int num_dimensions, const blocks_info_t* blocks_info,
                        long long block_id);
+int is_vector_in_blocks_prefix(const float* vector, int num_dimensions,
+                               const blocks_info_t* blocks_info, long long block_id,
+                               int prefix_length);
+int is_vector_in_blocks_suffix(const float* vector, int num_dimensions,
+                               const blocks_info_t* blocks_info, long long block_id,
+                               int prefix_length);
+int is_vector_in_blocks_slice(const float* vector, int num_dimensions,
+                              const blocks_info_t* blocks_info, long long block_id,
+                              int start_dimension, int end_dimension);
 
 #endif // _FAST_NN_BLOCKS_INFO_H_
