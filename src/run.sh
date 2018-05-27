@@ -87,7 +87,7 @@ then
             $(ifif "$NO_INIT_TEMP_FILE" "--no-init-temp-file" "") --no-delete-temp-file 2>> "$OUT_DIR/stderr.log" | tee "$OUT_DIR/stdout.log" || exit 1
     t=$(diff_ts $start)
     echo $t >> "$OUT_DIR/time_${NUM_THREADS}"
-    exit 0
+    # exit 0
 
     echo "    Done nn in $(diff_iso $start). Starting compare..."
     EXACT_OUT="$PQ_HOME/out/nn/${dataset}_${NUM_NN}"
@@ -95,6 +95,7 @@ then
     tail -1 $OUT_DIR/diff.json | python3 -c 'import json; print(json.loads(input())["missed_indices_per_vec_at_nn"])'
     tail -1 $OUT_DIR/diff.json | python3 -c 'import json; print(json.loads(input())["fast_perc_sum_dist_per_vector_at_nn"])'
     echo "    Done compare. Starting huffman estimate..."
+    exit 0
     make nn_huffman_estimator || exit 1
     for m in ${MM:-4 8 16 32}
     do
